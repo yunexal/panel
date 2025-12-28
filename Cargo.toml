@@ -2,7 +2,6 @@
 
 members = [
     "panel",
-    "node",
 ]
 
 resolver = "2"
