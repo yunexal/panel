@@ -2,8 +2,8 @@ use axum::{
     routing::{get, post, delete},
     Router,
     response::{Html, Redirect},
-    extract::{State, Path, Form},
-    http::HeaderMap,
+    extract::{State, Path, Form, Json},
+    http::{HeaderMap, StatusCode},
 };
 use std::net::SocketAddr;
 use sqlx::postgres::{PgPoolOptions, PgPool};
@@ -11,6 +11,7 @@ use sqlx::FromRow;
 use redis::Client as RedisClient;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+use rand::Rng;
 
 use tower_http::services::ServeDir;
 
@@ -76,7 +77,9 @@ async fn main() {
         .route("/nodes/{id}/setup", get(setup_node_page_handler))
         .route("/nodes/{id}/edit", get(edit_node_page_handler))
         .route("/nodes/{id}/update", post(update_node_handler))
+        .route("/nodes/{id}/rotate-token", post(rotate_token_handler))
         .route("/nodes/{id}", delete(delete_node_handler))
+        .route("/nodes/{id}/heartbeat", post(heartbeat_handler))
         .route("/install/{id}", get(install_script_handler))
         .route("/uninstall/{id}", get(uninstall_script_handler))
         .nest_service("/downloads", ServeDir::new("public"))
@@ -96,6 +99,7 @@ async fn index_handler(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Html<String> {
+    let start_time = std::time::Instant::now();
     let host = headers.get("host").and_then(|h| h.to_str().ok()).unwrap_or("127.0.0.1:3000");
 
     // Fetch nodes from DB
@@ -118,16 +122,68 @@ async fn index_handler(
 
     let mut nodes_html = String::new();
     for node in nodes {
-        // Check status
-        let url = format!("http://{}:{}/health", node.ip, node.port);
-        let status = match state.http_client.get(&url)
-            .header("X-Access-Token", &node.token)
-            .timeout(std::time::Duration::from_secs(2))
-            .send()
-            .await {
-            Ok(res) if res.status().is_success() => "<span style='color:green'>Online</span>",
-            _ => "<span style='color:red'>Offline</span>",
-        };
+        // Check status via Redis first
+        let mut stats_html = String::new();
+        let mut status = "<span style='color:red; font-weight:bold;'>● Offline</span>".to_string();
+
+        if let Some(client) = &state.redis {
+             if let Ok(mut con) = client.get_multiplexed_async_connection().await {
+                 let key = format!("node:{}:stats", node.id);
+                 let stats_json: Result<String, _> = redis::AsyncCommands::get(&mut con, key).await;
+                 if let Ok(json_str) = stats_json {
+                     if let Ok(payload) = serde_json::from_str::<HeartbeatPayload>(&json_str) {
+                         let now = chrono::Utc::now().timestamp_millis();
+                         let latency = if payload.timestamp > 0 {
+                             now - payload.timestamp
+                         } else {
+                             0
+                         };
+                         
+                         // Status indicator
+                         // < 10s: Green, < 20s: Yellow, > 20s: Red (though Redis expires at 15s, so mostly Green/Yellow)
+                         // Actually Redis expires at 15s, so if we see it, it's < 15s.
+                         // Let's just use Green if present.
+                         let status_color = "green";
+                         let status_text = "Online";
+
+                         let version_display = if !payload.version.is_empty() {
+                             format!(" <span style='color:#666; font-size:0.8em;'>(v{})</span>", payload.version)
+                         } else {
+                             "".to_string()
+                         };
+                         
+                         status = format!(
+                             "<span style='color:{}; font-weight:bold;'>● {}</span> <span style='font-size:0.8em; color:#666;' title='Latency'>📶 {}ms</span>", 
+                             status_color, status_text, latency
+                         );
+
+                         stats_html = format!(
+                             "<p>CPU: {:.1}% | RAM: {}/{} MB | Uptime: {}s{}</p>",
+                             payload.cpu_usage,
+                             payload.ram_usage / 1024 / 1024,
+                             payload.ram_total / 1024 / 1024,
+                             payload.uptime,
+                             version_display
+                         );
+                     }
+                 }
+             }
+        }
+
+        // Fallback to HTTP check if Redis failed or no data
+        if status.contains("Offline") {
+             let url = format!("http://{}:{}/health", node.ip, node.port);
+             if let Ok(res) = state.http_client.get(&url)
+                .header("Authorization", format!("Bearer {}", node.token))
+                .timeout(std::time::Duration::from_secs(2))
+                .send()
+                .await 
+             {
+                 if res.status().is_success() {
+                     status = "<span style='color:green; font-weight:bold;'>● Online</span> <span style='font-size:0.8em; color:#666;'>(No Stats)</span>".to_string();
+                 }
+             }
+        }
 
         let install_cmd = format!("curl -sSL http://{}/install/{} | sudo bash", host, node.id);
         let uninstall_cmd = format!("curl -sSL http://{}/uninstall/{} | sudo bash", host, node.id);
@@ -137,11 +193,13 @@ async fn index_handler(
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <h3>{} ({}:{})</h3>
                     <div>
+                        <button onclick="rotateToken('{}')" style="margin-right:10px; cursor:pointer; background:#17a2b8; color:white; border:none; padding:0.5rem 1rem; border-radius:4px;">Rotate Key</button>
                         <a href="/nodes/{}/edit" style="margin-right:10px; text-decoration:none; color:#007bff;">Edit</a>
                         <button onclick="deleteNode('{}')" class="delete-btn">Delete</button>
                     </div>
                 </div>
                 <p>Status: {}</p>
+                {}
                 <details>
                     <summary>Install Command</summary>
                     <pre>{}</pre>
@@ -151,8 +209,11 @@ async fn index_handler(
                     <pre>{}</pre>
                 </details>
             </div>
-        "#, node.name, node.ip, node.port, node.id, node.id, status, install_cmd, uninstall_cmd));
+        "#, node.name, node.ip, node.port, node.id, node.id, node.id, status, stats_html, install_cmd, uninstall_cmd));
     }
+
+    let elapsed = start_time.elapsed();
+    let panel_version = env!("CARGO_PKG_VERSION");
 
     Html(format!(r#"
     <!DOCTYPE html>
@@ -162,18 +223,30 @@ async fn index_handler(
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Yunexal Panel</title>
         <style>
-            body {{ font-family: sans-serif; padding: 2rem; max_width: 800px; margin: 0 auto; }}
+            body {{ font-family: sans-serif; padding: 2rem; max_width: 800px; margin: 0 auto; padding-bottom: 4rem; position: relative; min-height: 100vh; box-sizing: border-box; }}
             .header {{ display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }}
             .node-card {{ border: 1px solid #ddd; padding: 1rem; margin-bottom: 1rem; border-radius: 4px; }}
             .delete-btn {{ background: #ff4444; color: white; border: none; padding: 0.5rem 1rem; cursor: pointer; border-radius: 4px; }}
             .add-btn {{ background: #28a745; color: white; text-decoration: none; padding: 0.75rem 1.5rem; border-radius: 4px; }}
             pre {{ background: #f4f4f4; padding: 1rem; overflow-x: auto; }}
+            .footer {{ position: absolute; bottom: 1rem; right: 2rem; color: #888; font-size: 0.8rem; text-align: right; }}
         </style>
         <script>
             async function deleteNode(id) {{
                 if(confirm('Delete this node?')) {{
                     await fetch('/nodes/' + id, {{ method: 'DELETE' }});
                     window.location.reload();
+                }}
+            }}
+            async function rotateToken(id) {{
+                if(confirm('Rotate token for this node? This will update the node configuration.')) {{
+                    const res = await fetch('/nodes/' + id + '/rotate-token', {{ method: 'POST' }});
+                    if (res.ok) {{
+                        alert('Token rotated successfully!');
+                        window.location.reload();
+                    }} else {{
+                        alert('Failed to rotate token.');
+                    }}
                 }}
             }}
         </script>
@@ -186,9 +259,14 @@ async fn index_handler(
         
         <h2>Nodes</h2>
         {}
+
+        <div class="footer">
+            Yunexal Panel v{}<br>
+            Execution time: {:.3}ms
+        </div>
     </body>
     </html>
-    "#, nodes_html))
+    "#, nodes_html, panel_version, elapsed.as_secs_f64() * 1000.0))
 }
 
 async fn create_node_page_handler() -> Html<&'static str> {
@@ -256,6 +334,19 @@ struct CreateNodeRequest {
     name: String,
     ip: String,
     port: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct HeartbeatPayload {
+    node_id: String,
+    cpu_usage: f32,
+    ram_usage: u64,
+    ram_total: u64,
+    uptime: u64,
+    #[serde(default)]
+    version: String,
+    #[serde(default)]
+    timestamp: i64,
 }
 
 #[derive(Deserialize)]
@@ -467,6 +558,139 @@ curl -X DELETE http://{}/nodes/{}
 
 echo "Node uninstalled successfully."
 "#, host, id)
+}
+
+async fn heartbeat_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+    headers: HeaderMap,
+    Json(payload): Json<HeartbeatPayload>,
+) -> StatusCode {
+    // Verify Token
+    let auth_header = headers.get("Authorization")
+        .and_then(|h| h.to_str().ok())
+        .and_then(|h| h.strip_prefix("Bearer "));
+
+    if let Some(token) = auth_header {
+        // Check DB
+        let node_opt = sqlx::query_as::<_, Node>("SELECT id::text, name, ip, port, token FROM nodes WHERE id = $1::uuid")
+            .bind(&id)
+            .fetch_optional(&state.db)
+            .await
+            .unwrap_or(None);
+
+        let mut authorized = false;
+        if let Some(node) = node_opt {
+            if node.token == token {
+                authorized = true;
+            }
+        }
+
+        // Check Pending Token (if DB check failed)
+        if !authorized {
+            if let Some(client) = &state.redis {
+                if let Ok(mut con) = client.get_multiplexed_async_connection().await {
+                    let key = format!("node:{}:pending_token", id);
+                    let pending: Result<String, _> = redis::AsyncCommands::get(&mut con, key).await;
+                    if let Ok(pending_token) = pending {
+                        if pending_token == token {
+                            authorized = true;
+                            // Note: We could update DB here, but we do it in rotate_token_handler for simplicity
+                            // Actually, if this is the verification ping, we should probably allow it.
+                        }
+                    }
+                }
+            }
+        }
+
+        if !authorized {
+            return StatusCode::UNAUTHORIZED;
+        }
+    } else {
+        return StatusCode::UNAUTHORIZED;
+    }
+
+    if let Some(client) = &state.redis {
+        let key = format!("node:{}:stats", id);
+        let json = serde_json::to_string(&payload).unwrap_or_default();
+        
+        match client.get_multiplexed_async_connection().await {
+            Ok(mut con) => {
+                let _: Result<(), _> = redis::AsyncCommands::set_ex(&mut con, key, json, 15).await;
+            },
+            Err(e) => eprintln!("Failed to get redis connection: {}", e),
+        }
+    }
+    StatusCode::OK
+}
+
+async fn rotate_token_handler(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> StatusCode {
+    // 1. Fetch node info
+    let node_opt = sqlx::query_as::<_, Node>("SELECT id::text, name, ip, port, token FROM nodes WHERE id = $1::uuid")
+        .bind(&id)
+        .fetch_optional(&state.db)
+        .await
+        .unwrap_or(None);
+
+    if let Some(node) = node_opt {
+        // 2. Generate new token
+        let new_token: String = rand::rng()
+            .sample_iter(&rand::distr::Alphanumeric)
+            .take(32)
+            .map(char::from)
+            .collect();
+
+        // 3. Store pending token in Redis
+        if let Some(client) = &state.redis {
+            if let Ok(mut con) = client.get_multiplexed_async_connection().await {
+                let key = format!("node:{}:pending_token", id);
+                let _: Result<(), _> = redis::AsyncCommands::set_ex(&mut con, key, &new_token, 60).await; // 60s TTL
+            }
+        }
+
+        // 4. Send to Node
+        let url = format!("http://{}:{}/update-token", node.ip, node.port);
+        let payload = serde_json::json!({ "token": new_token });
+
+        let resp = state.http_client.post(&url)
+            .header("Authorization", format!("Bearer {}", node.token))
+            .json(&payload)
+            .send()
+            .await;
+
+        match resp {
+            Ok(res) if res.status().is_success() => {
+                // Node accepted and verified the token.
+                // We can now update the DB.
+                
+                let _ = sqlx::query("UPDATE nodes SET token = $1 WHERE id = $2::uuid")
+                    .bind(&new_token)
+                    .bind(&id)
+                    .execute(&state.db)
+                    .await;
+                
+                // Clear pending token
+                if let Some(client) = &state.redis {
+                    if let Ok(mut con) = client.get_multiplexed_async_connection().await {
+                        let key = format!("node:{}:pending_token", id);
+                        let _: Result<(), _> = redis::AsyncCommands::del(&mut con, key).await;
+                    }
+                }
+
+                StatusCode::OK
+            },
+            _ => {
+                // Node failed to update or verify.
+                // We do NOT update the DB. The Node should have reverted.
+                StatusCode::INTERNAL_SERVER_ERROR
+            }
+        }
+    } else {
+        StatusCode::NOT_FOUND
+    }
 }
 
 async fn install_script_handler(
