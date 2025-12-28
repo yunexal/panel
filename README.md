@@ -1,6 +1,6 @@
 # Update Log - Yunexal
 
-## Version: v0.1.0-dev
+## Version: v0.1.1-dev
 **Date:** December 27, 2025
 **Author:** nestor_churin
 
