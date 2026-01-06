@@ -2,7 +2,7 @@
 **Date:** December 28, 2025
 **Branch:** 0.1.1-dev
 
-### [Yunexal Panel](https://github.com/yunexal/yunexal-panel)
+### Yunexal Panel
 
 #### 🌟 New Features
 - **Real-time Monitoring:**
@@ -16,4 +16,16 @@
 - **Security:**
   - **Token Rotation:** Implemented a secure, one-click mechanism to rotate node authentication tokens without downtime.
   - Updated authentication to use standard `Authorization: Bearer` headers.
- 
+
+### Yunexal Node
+
+#### 🚀 Enhancements
+- **Heartbeat Service:**
+  - Implemented background task sending system metrics (CPU, RAM, Uptime) every 5 seconds.
+  - Includes timestamp for latency tracking.
+- **Configuration Management:**
+  - Added support for dynamic token updates via API.
+  - Automatically updates `config.yml` upon successful token rotation.
+  - Thread-safe configuration reloading.
+- **System Info:** Added `sysinfo` integration for accurate resource monitoring.
+- **Versioning:** Now reports its version (`0.1.1-dev`) to the panel.
