@@ -7,3 +7,11 @@ target/
 .DS_Store
 .vscode/
 panel/public/yunexal-node
+
+# Logs
+logs/
+*.log
+
+# Logs
+logs/
+*.log
