@@ -1,5 +1,5 @@
 
-### [Yunexal Node](https://github.com/yunexal/yunexal-panel/tree/main/node)
+### [Yunexal Node](https://github.com/yunexal/panel/tree/main/node)
 
 #### 🚀 Enhancements
 - **Heartbeat Service:**
