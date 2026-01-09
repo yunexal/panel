@@ -2,9 +2,7 @@
 
 **Yunexal** is a high-performance, secure, and modular game server management panel written in **Rust**. It leverages modern web technologies to provide a lightning-fast experience with minimal resource overhead.
 
-| Status | Version | Branch | Tech Stack |
-|:---:|:---:|:---:|:---|
-| 🚧 **In Development** | **v0.1.3-dev** | `0.1.3-dev` | Rust, Axum, HTMX, Askama, PostgreSQL |
+**Status:** ✅ Completed (**v0.1.3-dev**)
 
 ---
 
@@ -43,11 +41,5 @@
 2. **Run Panel**
    ```bash
    cd panel
-   cargo run
-   ```
-
-3. **Run Node**
-   ```bash
-   cd node
    cargo run
    ```
