@@ -1,0 +1,169 @@
+{% extends "layout.html" %}
+
+{% block title %}Edit Node - {{ panel_name }}{% endblock %}
+
+{% block header %}Edit Node{% endblock %}
+
+{% block content %}
+<a href="/nodes" style="display: inline-block; margin-bottom: 1rem; color: #666; text-decoration: none;">← Back to Nodes</a>
+
+{% if found %}
+<form action="/nodes/{{ node.id }}/update" method="POST" style="background: white; padding: 2rem; border-radius: 8px; border: 1px solid #ddd; max-width: 600px;">
+    <div class="form-group">
+        <label for="name">Node Name</label>
+        <input type="text" id="name" name="name" value="{{ node.name }}" required>
+    </div>
+    
+    <div class="form-group">
+        <label for="ip">IP Address</label>
+        <input type="text" id="ip" name="ip" value="{{ node.ip }}" required>
+    </div>
+    
+    <div class="form-group">
+        <label for="port">Daemon Port</label>
+        <input type="number" id="port" name="port" value="{{ node.port }}" required oninput="checkPort()">
+        <div id="port-feedback" style="margin-top: 5px; font-size: 0.9em;"></div>
+    </div>
+
+    <div class="form-group">
+        <label for="sftp_port">SFTP Port</label>
+        <input type="number" id="sftp_port" name="sftp_port" value="{{ node.sftp_port }}" required oninput="checkPort()">
+        <div id="sftp-feedback" style="margin-top: 5px; font-size: 0.9em;"></div>
+    </div>
+
+    <div style="margin-bottom: 1.5rem;">
+        <label style="display:block; margin-bottom: 0.5rem; color: #333; font-weight: bold;">Actions</label>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+            <a href="/nodes/{{ node.id }}/allocations" class="btn btn-secondary" style="background: #6f42c1; color: white; border: none; padding: 0.5rem 1rem; text-decoration: none; border-radius: 4px; display: inline-block;">
+                Manage Allocations (Ports)
+            </a>
+            <button type="button" onclick="updateNode('{{ node.id }}')" class="btn" style="background: #17a2b8; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">
+                Update Agent
+            </button>
+            <button type="button" onclick="rotateToken('{{ node.id }}')" class="btn" style="background: #f0ad4e; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">
+                Rotate Token
+            </button>
+            <button type="button" hx-delete="/nodes/{{ node.id }}" hx-confirm="Delete this node? This action cannot be undone." hx-target="body" hx-push-url="/nodes" class="btn btn-danger" style="background: #dc3545; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer;">
+                Delete Node
+            </button>
+        </div>
+    </div>
+    
+    <div style="margin-bottom: 1.5rem;">
+        <details>
+            <summary style="cursor: pointer; color: #007bff; font-size: 0.9em; margin-bottom: 0.5rem;">Show Install Command</summary>
+            <pre style="background: #f4f4f4; padding: 0.5rem; border-radius: 4px; font-size: 0.8em; overflow-x: auto;">{{ install_cmd }}</pre>
+        </details>
+        <details style="margin-top: 5px;">
+            <summary style="cursor: pointer; color: #dc3545; font-size: 0.9em; margin-bottom: 0.5rem;">Show Uninstall Command</summary>
+            <pre style="background: #f4f4f4; padding: 0.5rem; border-radius: 4px; font-size: 0.8em; overflow-x: auto;">{{ uninstall_cmd }}</pre>
+        </details>
+    </div>
+
+    <fieldset style="border: 1px solid #ddd; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+    <legend style="padding: 0 0.5rem; font-weight: bold;">Resource Limits</legend>
+        <div class="form-group">
+            <label for="ram_limit">RAM Limit (MB)</label>
+            <input type="number" id="ram_limit" name="ram_limit" value="{{ node.ram_limit }}" placeholder="Auto-Limit (95% of System RAM)" min="0">
+        </div>
+        <div class="form-group">
+            <label for="disk_limit">Disk Limit (MB)</label>
+            <input type="number" id="disk_limit" name="disk_limit" value="{{ node.disk_limit }}" placeholder="Auto-Limit (95% of System Disk)" min="0">
+        </div>
+    </fieldset>
+    
+    <button type="submit" class="btn btn-primary">Save Changes</button>
+</form>
+
+<script>
+    function checkSinglePort(portVal, feedbackEl) {
+         if (isNaN(portVal)) return;
+
+        if (portVal < 0 || portVal > 65535) {
+           feedbackEl.style.color = 'red';
+           feedbackEl.textContent = 'Port must be between 0 and 65535.';
+           return false;
+        }
+
+        if (portVal >= 0 && portVal <= 1023) {
+            feedbackEl.style.color = 'red';
+            feedbackEl.textContent = '❌ Blocked: System/Root ports (0-1023) are not allowed.';
+             return false;
+        } else if (portVal >= 1024 && portVal <= 9999) {
+            feedbackEl.style.color = 'orange';
+            feedbackEl.textContent = '⚠️ Warning: Common database/web ports (1024-9999). Ensure no conflicts.';
+        } else if (portVal >= 10000 && portVal <= 32767) {
+            feedbackEl.style.color = 'green';
+            feedbackEl.textContent = '✅ Recommended: Safe range (10000-32767).';
+        } else if (portVal >= 32768 && portVal <= 65535) {
+            feedbackEl.style.color = 'orange';
+            feedbackEl.textContent = '⚠️ Warning: Ephemeral range (32768-65535).';
+        }
+        return true;
+    }
+
+    function checkPort() {
+        const port = parseInt(document.getElementById('port').value);
+        const sftp = parseInt(document.getElementById('sftp_port').value);
+        const fbPort = document.getElementById('port-feedback');
+        const fbSftp = document.getElementById('sftp-feedback');
+        
+        fbPort.textContent = '';
+        fbSftp.textContent = '';
+
+        checkSinglePort(port, fbPort);
+        checkSinglePort(sftp, fbSftp);
+
+        if (!isNaN(port) && !isNaN(sftp) && port === sftp) {
+            fbSftp.style.color = 'red';
+            fbSftp.textContent = '❌ Collision: SFTP Port cannot be same as Daemon Port.';
+        }
+    }
+
+    function validateForm() {
+         const port = parseInt(document.getElementById('port').value);
+         const sftp = parseInt(document.getElementById('sftp_port').value);
+         
+         if ((port >= 0 && port <= 1023) || (sftp >= 0 && sftp <= 1023)) {
+             alert("Cannot use reserved system ports (0-1023).");
+             return false;
+         }
+         if (port === sftp) {
+             alert("Daemon Port and SFTP Port cannot be the same.");
+             return false;
+         }
+         return true;
+    }
+    
+    // Attach query handler
+    document.querySelector('form').onsubmit = validateForm;
+    checkPort();
+
+    async function rotateToken(id) {
+        if(confirm('Rotate token for this node? This will update the node configuration immediately.')) {
+            const res = await fetch('/nodes/' + id + '/rotate-token', { method: 'POST' });
+            if (res.ok) {
+                alert('Token rotated successfully! Node needs restart.');
+                window.location.reload();
+            } else {
+                alert('Failed to rotate token.');
+            }
+        }
+    }
+
+    async function updateNode(id) {
+        if(confirm('Update this node agent? Expect short downtime.')) {
+            try {
+                const res = await fetch('/nodes/' + id + '/trigger-update', { method: 'POST' });
+                const text = await res.text();
+                alert(text);
+            } catch (e) {
+                alert('Request failed: ' + e);
+            }
+        }
+    }
+</script>
+{% else %}
+<h1>Node not found</h1>
+{% endif %}
+{% endblock %}
