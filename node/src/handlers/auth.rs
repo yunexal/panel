@@ -13,6 +13,11 @@ pub async fn auth_middleware(
     request: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
+    // Allow public endpoints
+    if request.uri().path() == "/health" {
+        return Ok(next.run(request).await);
+    }
+
     let auth_header = headers.get("Authorization")
         .and_then(|h| h.to_str().ok())
         .and_then(|h| h.strip_prefix("Bearer "));
@@ -54,6 +59,8 @@ pub async fn update_token_handler(
         cpu_usage: 0.0,
         ram_usage: 0,
         ram_total: 0,
+        disk_usage: 0,
+        disk_total: 0,
         uptime: 0,
         version: env!("CARGO_PKG_VERSION").to_string(),
         timestamp: chrono::Utc::now().timestamp_millis(),
@@ -68,14 +75,40 @@ pub async fn update_token_handler(
     match resp {
         Ok(res) if res.status().is_success() => {
             // 3. Success: Write to config.yml
-            let config = NodeConfig {
-                token: new_token,
-                node_id: state.node_id.clone(),
-                panel_url: state.panel_url.clone(),
-                port: state.port,
+            // We need to preserve limits if possible, but here we don't have them in state easily 
+            // unless we add them to NodeState.
+            // For now, let's default to 0 (Auto) if we are re-writing config, 
+            // OR we should read the existing config first to preserve them.
+            
+            let mut current_config = if let Ok(content) = fs::read_to_string("config.yml") {
+                serde_yaml::from_str::<NodeConfig>(&content).unwrap_or(NodeConfig {
+                    token: "".to_string(),
+                    node_id: state.node_id.clone(),
+                    panel_url: state.panel_url.clone(),
+                    port: state.port,
+                    sftp_port: 2022,
+                    ram_limit: 0,
+                    disk_limit: 0,
+                })
+            } else {
+                 NodeConfig {
+                    token: "".to_string(),
+                    node_id: state.node_id.clone(),
+                    panel_url: state.panel_url.clone(),
+                    port: state.port,
+                    sftp_port: 2022,
+                    ram_limit: 0, // Auto
+                    disk_limit: 0, // Auto
+                }
             };
             
-            if let Ok(content) = serde_yaml::to_string(&config) {
+            // Update fields
+            current_config.token = new_token;
+            current_config.node_id = state.node_id.clone();
+            current_config.panel_url = state.panel_url.clone();
+            current_config.port = state.port;
+            
+            if let Ok(content) = serde_yaml::to_string(&current_config) {
                 if let Err(e) = fs::write("config.yml", content) {
                     eprintln!("Failed to write config.yml: {}", e);
                     // Revert memory? Or just log error? 

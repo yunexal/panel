@@ -6,7 +6,7 @@ target/
 .env
 .DS_Store
 .vscode/
-panel/public/yunexal-node
+
 
 # Logs
 logs/

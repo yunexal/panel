@@ -1,0 +1,87 @@
+{% extends "layout.html" %}
+
+{% block title %}System Logs - {{ panel_name }}{% endblock %}
+
+{% block header %}
+System Logs <span style="font-size: 0.6em; color: #666; font-weight: normal;">({{ current_file }})</span>
+{% endblock %}
+
+{% block styles %}
+<style>
+    .log-entry { padding: 2px 0; border-bottom: 1px solid #333; white-space: pre-wrap; word-break: break-all; }
+    .log-error { color: #ff6b6b; }
+    .log-warn { color: #feca57; }
+    .log-info { color: #54a0ff; }
+    .log-debug { color: #1dd1a1; }
+    .log-trace { color: #c8d6e5; }
+</style>
+{% endblock %}
+
+{% block header_actions %}
+<div style="display:flex; gap:10px;">
+    {% if is_latest %}
+    <button onclick="window.location.reload()" class="btn btn-primary">Refresh</button>
+    {% endif %}
+    {% if has_logs %}
+    <a href="/logs?file={{ current_file }}&raw=true" target="_blank" class="btn btn-secondary" style="background: #6c757d;">Raw</a>
+    <a href="/downloads/{{ current_file }}" download class="btn btn-secondary" style="background: #6c757d;">Download</a>
+    {% endif %}
+</div>
+{% endblock %}
+
+
+{% block content %}
+<div style="display: flex; gap: 2rem; height: 100%;">
+    <div style="flex: 1; display: flex; flex-direction: column;">
+        
+        <div style="margin-bottom: 1rem; display: flex; gap: 10px;">
+            <input type="text" id="log-search" placeholder="Search logs..." oninput="filterLogs()" class="form-control" style="flex: 1;">
+            <select id="log-level" onchange="filterLogs()" class="form-control" style="width: 150px;">
+                <option value="">All Levels</option>
+                <option value="log-error">Error</option>
+                <option value="log-warn">Warning</option>
+                <option value="log-info">Info</option>
+                <option value="log-debug">Debug</option>
+                <option value="log-trace">Trace</option>
+            </select>
+            <button onclick="clearFilters()" class="btn btn-secondary">Clear</button>
+        </div>
+
+        <div id="log-container" style="background: #1e1e1e; color: #d4d4d4; padding: 1rem; border-radius: 8px; flex-grow: 1; overflow-y: auto; font-family: monospace; white-space: pre-wrap; height: 50vh;">{{ log_content|safe }}</div>
+    </div>
+    <div style="width: 200px; flex-shrink: 0;">
+        <h3 style="margin-top: 0;">Log Files</h3>
+        <div style="background: white; border-radius: 8px; border: 1px solid #ddd; padding: 0.5rem;">
+            {% for file in file_list %}
+            <a href='/logs?file={{ file.name }}' style='display:block; padding:0.5rem; color:#333; text-decoration:none; border-radius:4px; margin-bottom:2px; {% if file.active %}background-color: #e9ecef; font-weight: bold;{% endif %}'>{{ file.display_name }}</a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+    function filterLogs() {
+        const search = document.getElementById('log-search').value.toLowerCase();
+        const level = document.getElementById('log-level').value;
+        const entries = document.querySelectorAll('#log-container .log-entry');
+
+        entries.forEach(entry => {
+            const text = entry.textContent.toLowerCase();
+            const hasLevel = level === "" || entry.classList.contains(level);
+            const hasText = search === "" || text.includes(search);
+
+            if (hasLevel && hasText) {
+                entry.style.display = "";
+            } else {
+                entry.style.display = "none";
+            }
+        });
+    }
+
+    function clearFilters() {
+        document.getElementById('log-search').value = '';
+        document.getElementById('log-level').value = '';
+        filterLogs();
+    }
+</script>
+{% endblock %}
