@@ -1,0 +1,21 @@
+{% extends "layout.html" %}
+
+{% block title %}Setup Node - {{ panel_name }}{% endblock %}
+
+{% block header %}Setup Instructions{% endblock %}
+
+{% block content %}
+{% if found %}
+<h1>Node Created Successfully!</h1>
+<div class="container" style="background: #f9f9f9; padding: 2rem; border-radius: 8px; border: 1px solid #ddd;">
+    <h2>Setup Instructions for "{{ node.name }}"</h2>
+    <p>Run the following command on your remote server ({{ node.ip }}):</p>
+    <pre style="background: #333; color: #fff; padding: 1rem; border-radius: 4px; overflow-x: auto;">{{ install_cmd }}</pre>
+    <p>This command will install Docker (if needed), configure the node agent, and start it.</p>
+    
+    <a href="/nodes" class="btn btn-primary">Go to Nodes List</a>
+</div>
+{% else %}
+<h1>Node not found</h1>
+{% endif %}
+{% endblock %}

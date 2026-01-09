@@ -1,0 +1,185 @@
+{% extends "layout.html" %}
+
+{% block title %}Allocations - {{ panel_name }}{% endblock %}
+
+{% block header %}Allocations for {{ node.name }}{% endblock %}
+
+{% block content %}
+<a href="/nodes" style="display: inline-block; margin-bottom: 1rem; color: #666; text-decoration: none;">← Back to Nodes</a>
+
+<div class="card" style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 2rem;">
+    <h3 style="margin-top: 0;">Add Allocation(s)</h3>
+    <form action="/nodes/{{ node.id }}/allocations" method="POST">
+        <div class="form-group">
+            <label for="ip">IP Address</label>
+            <input type="text" id="ip" name="ip" value="{{ node.ip }}" required>
+        </div>
+        <div class="form-group">
+            <label for="ports">Ports</label>
+            <div style="color: #666; font-size: 0.85em; margin-bottom: 0.5rem;">
+                Accepted formats: <code style="background: #f4f4f4; padding: 0.2rem 0.4rem; border-radius: 4px;">8080</code>, <code style="background: #f4f4f4; padding: 0.2rem 0.4rem; border-radius: 4px;">25565-25570</code>, <code style="background: #f4f4f4; padding: 0.2rem 0.4rem; border-radius: 4px;">80, 443, 3000-3005</code>
+            </div>
+            <textarea id="ports" name="ports" rows="3" placeholder="e.g. 25565, 8080-8090" required style="width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; resize: vertical;" oninput="validatePorts(this)"></textarea>
+            <div id="ports-feedback" style="margin-top: 5px; font-size: 0.9em;"></div>
+        </div>
+        <button type="submit" id="submit-btn" class="btn btn-primary">Add Ports</button>
+    </form>
+</div>
+
+<div class="card" style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 2rem;">
+    <h3 style="margin-top: 0; display: flex; justify-content: space-between; align-items: center;">
+        <span>Allocation List</span>
+        <button onclick="toggleDeleteForm()" class="btn btn-danger" style="font-size: 0.8rem;">Bulk Delete</button>
+    </h3>
+
+    <div id="bulk-delete-form" style="display: none; background: #fff0f0; border: 1px solid #ffcccc; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+        <form action="/nodes/{{ node.id }}/allocations/delete" method="POST">
+            <label for="delete_ports" style="color: #d9534f;">Ports to Delete:</label>
+            <input type="text" id="delete_ports" name="ports" placeholder="8080, 25565-25570" required style="margin-bottom: 0.5rem;">
+            
+            <div style="margin-bottom: 0.5rem;">
+                <input type="checkbox" id="force" name="force" value="true">
+                <label for="force" style="display: inline; font-weight: normal; color: #d9534f;">Force delete assigned ports (Dangerous)</label>
+            </div>
+            
+            <button type="submit" class="btn btn-danger">Confirm Deletion</button>
+        </form>
+    </div>
+
+    <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
+        <thead>
+            <tr style="background: #f9f9f9; text-align: left;">
+                <th style="padding: 0.75rem; border-bottom: 2px solid #ddd;">IP Address</th>
+                <th style="padding: 0.75rem; border-bottom: 2px solid #ddd;">Port</th>
+                <th style="padding: 0.75rem; border-bottom: 2px solid #ddd;">Status</th>
+                <th style="padding: 0.75rem; border-bottom: 2px solid #ddd;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for alloc in allocations %}
+            <tr>
+                <td style="padding: 0.75rem; border-bottom: 1px solid #eee;">{{ alloc.ip }}</td>
+                <td style="padding: 0.75rem; border-bottom: 1px solid #eee;">{{ alloc.port }}</td>
+                <td style="padding: 0.75rem; border-bottom: 1px solid #eee;">
+                    {% if alloc.server_id.is_some() %}
+                    <span style="color: #28a745; font-weight: bold;">Assigned</span> ({{ alloc.server_id.clone().unwrap() }})
+                    {% else %}
+                    <span style="color: #6c757d;">Free</span>
+                    {% endif %}
+                </td>
+                <td style="padding: 0.75rem; border-bottom: 1px solid #eee;">
+                    <form action="/nodes/{{ node.id }}/allocations/delete" method="POST" style="display: inline;" onsubmit="return confirm('Delete port {{ alloc.port }}?');">
+                        <input type="hidden" name="ports" value="{{ alloc.port }}">
+                        {% if alloc.server_id.is_some() %}
+                        <button type="button" class="btn" style="background: #ccc; cursor: not-allowed; padding: 0.3rem 0.6rem; font-size: 0.8rem;" disabled>In Use</button>
+                        {% else %}
+                        <button type="submit" class="btn btn-danger" style="padding: 0.3rem 0.6rem; font-size: 0.8rem;">Delete</button>
+                        {% endif %}
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="4" style="padding: 1.5rem; text-align: center; color: #888;">No allocations found. Add some above.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <div style="margin-top: 1rem; display: flex; justify-content: center; gap: 1rem;">
+        {% if page > 1 %}
+        <a href="?page={{ page - 1 }}" class="btn" style="background: #fff; border: 1px solid #ccc; color: #333;">Previous</a>
+        {% endif %}
+        
+        {% if has_more %}
+        <a href="?page={{ page + 1 }}" class="btn" style="background: #fff; border: 1px solid #ccc; color: #333;">Next</a>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+    function validatePorts(input) {
+        const feedback = document.getElementById('ports-feedback');
+        const submitBtn = document.getElementById('submit-btn');
+        const raw = input.value;
+        
+        let blocked = false;
+        let warning = false;
+        let errors = [];
+        let warnings = [];
+
+        // Simple regex split by comma
+        const parts = raw.split(',');
+
+        for (let part of parts) {
+            part = part.trim();
+            if(!part) continue;
+
+            if (part.includes('-')) {
+                // Range
+                const range = part.split('-');
+                if(range.length === 2) {
+                    const start = parseInt(range[0]);
+                    const end = parseInt(range[1]);
+
+                    if(!isNaN(start) && !isNaN(end)) {
+                         if (start < 0 || end > 65535 || start > end) {
+                            errors.push(`Invalid range: ${part}`);
+                            blocked = true;
+                         } else {
+                             // Check range logic
+                             for(let p = start; p <= end; p++) {
+                                 if (p <= 1023) {
+                                     blocked = true;
+                                     if(!errors.includes("Contains system ports (0-1023)")) errors.push("Contains system ports (0-1023)");
+                                 } else if (p >= 32768 && p <= 65535) {
+                                     warning = true;
+                                 }
+                             }
+                         }
+                    }
+                }
+            } else {
+                // Single
+                const p = parseInt(part);
+                if (!isNaN(p)) {
+                     if (p < 0 || p > 65535) {
+                        errors.push(`Invalid port: ${p}`);
+                        blocked = true;
+                     } else if (p <= 1023) {
+                        errors.push(`System port blocked: ${p}`);
+                        blocked = true; 
+                     } else if (p >= 32768 && p <= 65535) {
+                        warning = true;
+                        if (!warnings.includes("Contains ephemeral ports")) warnings.push("Contains ephemeral ports (32768-65535)");
+                     }
+                }
+            }
+        }
+
+        if (blocked) {
+            feedback.style.color = 'red';
+            feedback.innerHTML = '❌ ' + errors.join('<br>');
+            submitBtn.disabled = true;
+            submitBtn.style.opacity = '0.5';
+            submitBtn.style.cursor = 'not-allowed';
+        } else if (warning) {
+            feedback.style.color = 'orange';
+            feedback.innerHTML = '⚠️ Warning: ' + warnings.join('<br>') + '<br>Proceed with caution.';
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+            submitBtn.style.cursor = 'pointer';
+        } else {
+            feedback.textContent = '';
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+            submitBtn.style.cursor = 'pointer';
+        }
+    }
+
+    function toggleDeleteForm() {
+        const form = document.getElementById('bulk-delete-form');
+        form.style.display = form.style.display === 'none' ? 'block' : 'none';
+    }
+</script>
+{% endblock %}

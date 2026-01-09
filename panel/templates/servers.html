@@ -1,0 +1,27 @@
+{% extends "layout.html" %}
+
+{% block title %}Servers - {{ panel_name }}{% endblock %}
+
+{% block header %}Servers{% endblock %}
+{% block header_actions %}
+{% if has_nodes %}
+<a href="#" class="btn btn-success">Create New Server</a>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+{% if has_nodes %}
+    <div class="server-list">
+        <div style="background: white; padding: 2rem; border-radius: 8px; border: 1px solid #ddd; text-align: center; color: #666;">
+            <p>No servers created yet.</p>
+        </div>
+    </div>
+{% else %}
+    <div style="text-align: center; margin-top: 5rem; color: #666;">
+        <div style="font-size: 4rem; margin-bottom: 1rem;">⚠️</div>
+        <h2>No Nodes Available</h2>
+        <p style="margin-bottom: 2rem;">You must create at least one Node before you can create Servers.</p>
+        <a href="/nodes/new" class="btn btn-primary">Create a Node First</a>
+    </div>
+{% endif %}
+{% endblock %}

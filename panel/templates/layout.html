@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Yunexal Panel{% endblock %}</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 0; display: flex; height: 100vh; overflow: hidden; }
+        .sidebar { width: 250px; background: #333; color: white; display: flex; flex-direction: column; padding: 1rem; flex-shrink: 0; }
+        .sidebar h2 { margin-top: 0; padding-bottom: 1rem; border-bottom: 1px solid #555; }
+        .sidebar a { color: #ccc; text-decoration: none; padding: 0.75rem; display: block; border-radius: 4px; margin-bottom: 0.5rem; }
+        .sidebar a:hover, .sidebar a.active { background: #444; color: white; }
+        .content { flex-grow: 1; padding: 2rem; background: #f9f9f9; display: flex; flex-direction: column; height: 100%; box-sizing: border-box; overflow-y: auto; }
+        
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .btn { display: inline-block; padding: 0.75rem 1.5rem; border-radius: 4px; text-decoration: none; color: white; cursor: pointer; border: none; font-size: 1rem; }
+        .btn-primary { background: #007bff; }
+        .btn-primary:hover { background: #0056b3; }
+        .btn-success { background: #28a745; }
+        .btn-success:hover { background: #218838; }
+        .btn-danger { background: #ff4444; }
+        .btn-danger:hover { background: #cc0000; }
+        
+        .form-group { margin-bottom: 1rem; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: bold; }
+        input[type="text"], input[type="number"], select { width: 100%; padding: 0.5rem; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+        
+        .footer { margin-top: auto; color: #888; font-size: 0.8rem; text-align: right; border-top: 1px solid #eee; padding-top: 1rem; }
+
+        .text-red { color: #ff4444; }
+        .text-green { color: #28a745; }
+        .border-red { border-left-color: #ff4444 !important; }
+        .border-green { border-left-color: #28a745 !important; }
+    </style>
+    <script>
+        function toggleMainSidebar() {
+            const sidebar = document.getElementById('main-sidebar');
+            sidebar.style.display = sidebar.style.display === 'none' ? 'flex' : 'none';
+        }
+        
+        // Update active class for preserved sidebar links
+        document.addEventListener('htmx:afterSwap', function(evt) {
+            const path = window.location.pathname;
+            document.querySelectorAll('#main-sidebar nav a').forEach(a => {
+                const href = a.getAttribute('href');
+                a.classList.remove('active');
+                if (href === '/' && path === '/') a.classList.add('active');
+                else if (href !== '/' && path.startsWith(href)) a.classList.add('active');
+            });
+        });
+    </script>
+    {% block scripts %}{% endblock %}
+</head>
+<body hx-boost="true">
+    <div id="connection-lost-banner" style="display: none; position: fixed; top: 0; left: 0; width: 100%; background-color: #ff4444; color: white; text-align: center; padding: 0.5rem; font-weight: bold; z-index: 9999; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
+        ⚠️ Connection Lost - check your internet connection
+    </div>
+
+    <div id="main-sidebar" class="sidebar" hx-preserve="true">
+        {% block sidebar_title %}<h2 id="sidebar-panel-name">{{ panel_name }}</h2>{% endblock %}
+        <nav>
+            <a href="/" class="{% if active_tab == "overview" %}active{% endif %}">Overview</a>
+            <a href="/nodes" class="{% if active_tab == "nodes" %}active{% endif %}">Nodes</a>
+            <a href="/servers" class="{% if active_tab == "servers" %}active{% endif %}">Servers</a>
+            <a href="/logs" class="{% if active_tab == "logs" %}active{% endif %}">Panel Logs</a>
+        </nav>
+        <script>
+            function updateConnectionStatus() {
+                const banner = document.getElementById('connection-lost-banner');
+                if (navigator.onLine) {
+                    banner.style.display = 'none';
+                } else {
+                    banner.style.display = 'block';
+                }
+            }
+            window.addEventListener('online', updateConnectionStatus);
+            window.addEventListener('offline', updateConnectionStatus);
+            // Initial check
+            updateConnectionStatus();
+        </script>
+    </div>
+    <main class="content">
+        {% block styles %}{% endblock %}
+        <div class="header">
+             <div style="display:flex; align-items:center; gap:10px;">
+                <button onclick="toggleMainSidebar()" style="width:40px; height:40px; display:flex; align-items:center; justify-content:center; background:white; border:1px solid #ddd; border-radius:4px; color:#333; font-size:1.2rem; cursor:pointer;">☰</button>
+                <h1>{% block header %}{% endblock %}</h1>
+             </div>
+             <div>
+                {% block header_actions %}{% endblock %}
+             </div>
+        </div>
+
+        {% block content %}{% endblock %}
+
+        {% block footer %}
+        <div class="footer">
+            {{ panel_name }} v{{ panel_version }}<br>
+            Execution time: {{ "{:.2}"|format(execution_time) }}ms
+        </div>
+        {% endblock %}
+    </main>
+</body>
+</html>

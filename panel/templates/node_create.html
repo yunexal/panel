@@ -1,0 +1,176 @@
+{% extends "layout.html" %}
+
+{% block title %}Create Node - {{ panel_name }}{% endblock %}
+
+{% block header %}Add New Node{% endblock %}
+
+{% block content %}
+<a href="/nodes" style="display: inline-block; margin-bottom: 1rem; color: #666; text-decoration: none;">← Back to Nodes</a>
+
+<form action="/nodes" method="POST" onsubmit="return validateForm()" style="background: white; padding: 2rem; border-radius: 8px; border: 1px solid #ddd; max-width: 600px;">
+    <div class="form-group">
+        <label for="name">Node Name</label>
+        <input type="text" id="name" name="name" placeholder="e.g. Worker 1" required>
+    </div>
+    
+    <div class="form-group">
+        <label for="ip">IP Address</label>
+        <input type="text" id="ip" name="ip" placeholder="e.g. 192.168.1.10" required>
+    </div>
+    
+    <div class="form-group">
+        <label for="port">Daemon Port</label>
+        <input type="number" id="port" name="port" value="3001" required oninput="checkPort()">
+        <div id="port-feedback" style="margin-top: 5px; font-size: 0.9em;"></div>
+    </div>
+
+    <div class="form-group">
+        <label for="sftp_port">SFTP Port</label>
+        <input type="number" id="sftp_port" name="sftp_port" value="2022" required oninput="checkPort()">
+        <div id="sftp-feedback" style="margin-top: 5px; font-size: 0.9em;"></div>
+    </div>
+
+    <fieldset style="border: 1px solid #ddd; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+    <legend style="padding: 0 0.5rem; font-weight: bold;">Resource Limits</legend>
+        <div class="form-group">
+            <label for="ram_limit">RAM Limit (MB)</label>
+            <input type="number" id="ram_limit" name="ram_limit" placeholder="Auto-Limit (95% of System RAM)" min="0">
+        </div>
+        <div class="form-group">
+            <label for="disk_limit">Disk Limit (MB)</label>
+            <input type="number" id="disk_limit" name="disk_limit" placeholder="Auto-Limit (95% of System Disk)" min="0">
+        </div>
+    </fieldset>
+
+    <div class="form-group">
+        <label for="allocation_ports">Initial Allocations (optional)</label>
+        <input type="text" id="allocation_ports" name="allocation_ports" placeholder="e.g. 25565-25570, 8080" oninput="checkAllocations()">
+        <div style="margin-top: 5px; font-size: 0.9em; color: #666;" id="alloc-desc">
+            Comma separated ports or ranges. These will be added to the node's allocation table.
+        </div>
+        <div id="alloc-feedback" style="margin-top: 5px; font-size: 0.9em;"></div>
+    </div>
+    
+    <button type="submit" class="btn btn-primary">Create Node</button>
+</form>
+
+<script>
+    function checkSinglePort(portVal, feedbackEl) {
+         if (isNaN(portVal)) return true; // Let parse handle empty/junk
+
+        if (portVal < 0 || portVal > 65535) {
+           feedbackEl.style.color = 'red';
+           feedbackEl.textContent = 'Port must be between 0 and 65535.';
+           return false;
+        }
+
+        if (portVal >= 0 && portVal <= 1023) {
+            feedbackEl.style.color = 'red';
+            feedbackEl.textContent = '❌ Blocked: System/Root ports (0-1023) are not allowed.';
+             return false;
+        } else if (portVal >= 1024 && portVal <= 9999) {
+            feedbackEl.style.color = 'orange';
+            feedbackEl.textContent = '⚠️ Warning: Common database/web ports (1024-9999). Ensure no conflicts.';
+        } else if (portVal >= 10000 && portVal <= 32767) {
+            feedbackEl.style.color = 'green';
+            feedbackEl.textContent = '✅ Recommended: Safe range (10000-32767).';
+        } else if (portVal >= 32768 && portVal <= 65535) {
+            feedbackEl.style.color = 'orange';
+            feedbackEl.textContent = '⚠️ Warning: Ephemeral range (32768-65535).';
+        }
+        return true;
+    }
+
+    function checkAllocations() {
+        const input = document.getElementById('allocation_ports').value;
+        const feedback = document.getElementById('alloc-feedback');
+        feedback.textContent = '';
+        
+        if (!input.trim()) return;
+
+        const parts = input.split(',');
+        for (let part of parts) {
+            part = part.trim();
+            if(!part) continue;
+            
+            if (part.includes('-')) {
+                const range = part.split('-');
+                if(range.length === 2) {
+                     const start = parseInt(range[0]);
+                     const end = parseInt(range[1]);
+                     if (!isNaN(start)) {
+                         if (!checkSinglePort(start, feedback)) return;
+                     } 
+                     // We only check start for brevity in range, but strictly we should check both
+                     if (!isNaN(start) && !isNaN(end) && start <= 1023) {
+                        feedback.style.color = 'red';
+                        feedback.textContent = '❌ Blocked: Range starts in restricted system ports (0-1023).';
+                        return;
+                     }
+                }
+            } else {
+                const p = parseInt(part);
+                if (!isNaN(p)) {
+                     if(!checkSinglePort(p, feedback)) return;
+                }
+            }
+        }
+    }
+
+    function checkPort() {
+        const port = parseInt(document.getElementById('port').value);
+        const sftp = parseInt(document.getElementById('sftp_port').value);
+        const fbPort = document.getElementById('port-feedback');
+        const fbSftp = document.getElementById('sftp-feedback');
+        
+        fbPort.textContent = '';
+        fbSftp.textContent = '';
+
+        checkSinglePort(port, fbPort);
+        checkSinglePort(sftp, fbSftp);
+
+        if (!isNaN(port) && !isNaN(sftp) && port === sftp) {
+            fbSftp.style.color = 'red';
+            fbSftp.textContent = '❌ Collision: SFTP Port cannot be same as Daemon Port.';
+        }
+    }
+
+    function validateForm() {
+         const port = parseInt(document.getElementById('port').value);
+         const sftp = parseInt(document.getElementById('sftp_port').value);
+         
+         if ((port >= 0 && port <= 1023) || (sftp >= 0 && sftp <= 1023)) {
+             alert("Cannot use reserved system ports (0-1023).");
+             return false;
+         }
+         if (port === sftp) {
+             alert("Daemon Port and SFTP Port cannot be the same.");
+             return false;
+         }
+         
+         // Validate Allocations
+         const allocInput = document.getElementById('allocation_ports').value;
+         if (allocInput) {
+            const parts = allocInput.split(',');
+            for (let part of parts) {
+                part = part.trim();
+                if (part.includes('-')) {
+                    const r = part.split('-');
+                    if (parseInt(r[0]) <= 1023) {
+                         alert("Allocations contain reserved ports (0-1023).");
+                         return false;
+                    }
+                } else {
+                    if (parseInt(part) <= 1023) {
+                         alert("Allocations contain reserved ports (0-1023).");
+                         return false;
+                    }
+                }
+            }
+         }
+
+         return true;
+    }
+    checkPort();
+</script>
+{% endblock %}

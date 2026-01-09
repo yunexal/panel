@@ -1,0 +1,44 @@
+{% extends "layout.html" %}
+
+{% block title %}Nodes - {{ panel_name }}{% endblock %}
+
+{% block header %}Nodes{% endblock %}
+{% block header_actions %}
+<a href="/nodes/new" class="btn btn-success">Add New Node</a>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+
+{% block content %}
+<div class="node-list" hx-get="/nodes" hx-trigger="every 5s" hx-select=".node-list" hx-swap="outerHTML">
+    {% for node in nodes %}
+    <div class="node-card border-{{ node.status_color }}" style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1rem; border-left: 5px solid transparent;">
+        <div style="display: flex; justify-content: space-between; align-items: start;">
+            <div>
+                <h3 style="margin: 0 0 0.5rem 0;">{{ node.name }} <span style="font-size: 0.8em; color: #888; font-weight: normal;">(ID: {{ node.id_short }})</span></h3>
+                <div style="color: #666; font-size: 0.9em; margin-bottom: 0.5rem;">
+                    {{ node.ip }}:{{ node.port }}
+                </div>
+                <div style="display: flex; gap: 1rem; font-size: 0.85em;">
+                    <span class="text-{{ node.status_color }}" style="font-weight: bold;">● {{ node.status_text }}</span>
+                    {% if node.is_online %}
+                    <span>CPU: {{ node.cpu_usage }}%</span>
+                    <span>RAM: {{ node.ram_usage }}/{{ node.ram_total }} MB</span>
+                    <span>Disk: {{ node.disk_usage }}/{{ node.disk_total }} MB</span>
+                    <span>Uptime: {{ node.uptime_formatted }}</span>
+                    <span style="color: #666;">v{{ node.version }}</span>
+                    {% endif %}
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; flex-direction: column; align-items: flex-end;">
+                 <a href="/nodes/{{ node.id }}/edit" class="btn btn-primary" style="font-size: 0.8rem; padding: 0.4rem 0.8rem;">Edit & Manage</a>
+                 <div style="display: flex; gap: 10px;">
+                    {% if node.is_online %}
+                    {% endif %}
+                 </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
