@@ -1,7 +1,7 @@
 #![allow(deprecated)]
 use bollard::Docker;
 use axum::{
-    routing::{get, post},
+    routing::{delete, get, post},
     Router,
     middleware,
 };
@@ -17,7 +17,7 @@ use models::NodeConfig;
 use state::NodeState;
 use handlers::{
     auth::{auth_middleware, update_token_handler},
-    docker::{list_containers, create_container},
+    docker::{console_handler, create_container, delete_container, list_containers},
     health::health_check,
     update::self_update_handler,
 };
@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
         if cfg.ram_limit == 0 {
              let total_ram_mb = sys.total_memory() / 1024 / 1024;
              cfg.ram_limit = (total_ram_mb as f64 * 0.95) as u64;
-             println!("Auto-configured RAM limit to {} MB (95% of {} MB)", cfg.ram_limit, total_ram_mb);
+             println!("Auto-configured RAM limit to {:.2} GB (95% of {:.2} GB)", cfg.ram_limit as f64 / 1024.0, total_ram_mb as f64 / 1024.0);
         }
 
         // Auto-configure Disk Limit (95%)
@@ -65,7 +65,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
             }
 
             cfg.disk_limit = (total_space_mb as f64 * 0.95) as u64;
-            println!("Auto-configured Disk limit to {} MB (95% of {} MB)", cfg.disk_limit, total_space_mb);
+            println!("Auto-configured Disk limit to {:.2} GB (95% of {:.2} GB)", cfg.disk_limit as f64 / 1024.0, total_space_mb as f64 / 1024.0);
         }
 
         (cfg.token, cfg.node_id, cfg.panel_url, cfg.port, cfg.ram_limit, cfg.disk_limit)
@@ -104,6 +104,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
         .route("/health", get(health_check))
         .route("/containers", get(list_containers))
         .route("/containers", post(create_container))
+        .route("/containers/:uuid", delete(delete_container))
+        .route("/containers/:uuid/console", get(console_handler))
         .route("/update-token", post(update_token_handler))
         .route("/self-update", post(self_update_handler))
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware))

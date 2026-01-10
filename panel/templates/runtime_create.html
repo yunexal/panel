@@ -1,0 +1,28 @@
+{% extends "layout.html" %}
+
+{% block title %}Create Runtime - {{ panel_name }}{% endblock %}
+
+{% block header %}Create New{% endblock %}
+
+{% block content %}
+<a href="/runtimes" style="display: inline-block; margin-bottom: 1rem; color: #666; text-decoration: none;">← Back to Runtimes</a>
+
+<form action="/runtimes" method="POST" style="background: white; padding: 2rem; border-radius: 8px; border: 1px solid #ddd; max-width: 600px;">
+    <div class="form-group">
+        <label for="name">Runtime Name</label>
+        <input type="text" id="name" name="name" placeholder="e.g. Minecraft, Rust, Telegram Bot etc." required>
+    </div>
+    
+    <div class="form-group">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="4" placeholder="Optional description of this runtime" style="width: 100%; box-sizing: border-box;"></textarea>
+    </div>
+
+    <div class="form-group">
+        <label for="color">Category Color</label>
+        <input type="color" id="color" name="color" value="#007bff" style="height: 40px; width: 100px; padding: 0;">
+    </div>
+    
+    <button type="submit" class="btn btn-primary">Create Runtime</button>
+</form>
+{% endblock %}

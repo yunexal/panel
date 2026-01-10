@@ -3,25 +3,85 @@
 {% block title %}Servers - {{ panel_name }}{% endblock %}
 
 {% block header %}Servers{% endblock %}
+
 {% block header_actions %}
-{% if has_nodes %}
-<a href="#" class="btn btn-success">Create New Server</a>
-{% endif %}
+<a href="/servers/new" class="btn btn-primary">Create New Server</a>
 {% endblock %}
 
 {% block content %}
-{% if has_nodes %}
-    <div class="server-list">
-        <div style="background: white; padding: 2rem; border-radius: 8px; border: 1px solid #ddd; text-align: center; color: #666;">
-            <p>No servers created yet.</p>
-        </div>
-    </div>
+
+{% if !has_nodes %}
+<div style="text-align: center; padding: 4rem 2rem;">
+    <div style="font-size: 4rem; color: #ddd; margin-bottom: 1rem;">🖥️</div>
+    <h2 style="color: #333; margin-bottom: 0.5rem;">No Nodes Found</h2>
+    <p style="color: #666; max-width: 500px; margin: 0 auto 2rem auto;">
+        You need to configure at least one Node before creating servers.
+    </p>
+    <a href="/nodes/new" class="btn btn-primary">Create Your First Node</a>
+</div>
 {% else %}
-    <div style="text-align: center; margin-top: 5rem; color: #666;">
-        <div style="font-size: 4rem; margin-bottom: 1rem;">⚠️</div>
-        <h2>No Nodes Available</h2>
-        <p style="margin-bottom: 2rem;">You must create at least one Node before you can create Servers.</p>
-        <a href="/nodes/new" class="btn btn-primary">Create a Node First</a>
-    </div>
+
+{% if servers.is_empty() %}
+<div style="text-align: center; padding: 4rem 2rem;">
+    <div style="font-size: 4rem; color: #ddd; margin-bottom: 1rem;">📦</div>
+    <h2 style="color: #333; margin-bottom: 0.5rem;">No Servers Yet</h2>
+    <p style="color: #666; max-width: 500px; margin: 0 auto 2rem auto;">
+        Create your first server to get started!
+    </p>
+    <a href="/servers/new" class="btn btn-primary">Create New Server</a>
+</div>
+{% else %}
+<div style="background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden;">
+    <table style="width: 100%; border-collapse: collapse;">
+        <thead>
+            <tr style="background: #f8f9fa; border-bottom: 2px solid #e9ecef;">
+                <th style="text-align: left; padding: 1rem; color: #495057;">Name</th>
+                <th style="text-align: left; padding: 1rem; color: #495057;">Owner</th>
+                <th style="text-align: left; padding: 1rem; color: #495057;">Node</th>
+                <th style="text-align: left; padding: 1rem; color: #495057;">Connection</th>
+                <th style="text-align: left; padding: 1rem; color: #495057;">Status</th>
+                <th style="text-align: right; padding: 1rem; color: #495057;">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for server in servers %}
+            <tr style="border-bottom: 1px solid #e9ecef;">
+                <td style="padding: 1rem;">
+                    <div style="font-weight: bold; color: #333;">{{ server.name }}</div>
+                    <div style="font-size: 0.8em; color: #666;">{% if let Some(desc) = server.description %}{{ desc }}{%
+                        endif %}</div>
+                </td>
+                <td style="padding: 1rem;">{{ server.owner_id }}</td>
+                <td style="padding: 1rem;">
+                    <!-- In a real app we'd join this name, or fetch it. For now ID is fine or we augment struct -->
+                    <span style="font-family: monospace; background: #e9ecef; padding: 2px 4px; border-radius: 4px;">{{
+                        server.node_id }}</span>
+                </td>
+                <td style="padding: 1rem;">
+                    <!-- We need allocation IP/Port here, but Server struct only has ID. 
+                                  We should probably JOIN in the handler or fetch separately. 
+                                  For now, just showing IDs is "safe" but not UX friendly.
+                                  Let's leave empty or show 'View Details' -->
+                    <span style="color: #666;">Alloc: {% if let Some(aid) = server.allocation_id %}{{ aid }}{% else %}None{% endif %}</span>
+                </td>
+                <td style="padding: 1rem;">
+                    <span class="badge {% if server.status == " running" %}badge-success{% else %}badge-warning{% endif
+                        %}" style="padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; 
+                                         {% if server.status == " running" %}background: #d4edda; color: #155724;{%
+                        else %}background: #fff3cd; color: #856404;{% endif %}">
+                        {{ server.status }}
+                    </span>
+                </td>
+                <td style="padding: 1rem; text-align: right;">
+                    <a href="/servers/{{ server.id }}/manage" class="btn btn-sm"
+                        style="background: #17a2b8; color: white; padding: 0.25rem 0.5rem; font-size: 0.8rem; text-decoration: none; border-radius: 4px;">Manage</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
 {% endif %}
 {% endblock %}

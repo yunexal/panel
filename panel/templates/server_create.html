@@ -1,0 +1,443 @@
+{% extends "layout.html" %}
+
+{% block title %}Create Server - {{ panel_name }}{% endblock %}
+
+{% block header %}Create New Server{% endblock %}
+
+{% block content %}
+<a href="/servers" style="display: inline-block; margin-bottom: 1rem; color: #666; text-decoration: none;">← Back to
+    Servers</a>
+
+{% match error %}
+    {% when Some with (err) %}
+        <div style="background-color: #fee2e2; color: #b91c1c; padding: 1rem; border-radius: 8px; margin-bottom: 2rem; border: 1px solid #fecaca;">
+            <strong>Error:</strong> {{ err }}
+            {% if err == "no_allocations" %}
+                <br>No free ports (allocations) found on any node. Please go to <a href="/nodes" style="color: inherit; text-decoration: underline;">Nodes</a>, select a node, and add Allocations first.
+            {% else if err == "invalid_allocation" %}
+                <br>The selected port is no longer available.
+            {% endif %}
+        </div>
+    {% when None %}
+{% endmatch %}
+
+<form action="/servers" method="POST" style="max-width: 1200px;">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+
+        <!-- Left Column -->
+        <div>
+            <!-- Core Details -->
+            <div class="section-card"
+                style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem;">
+                <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
+                    Core Details</h3>
+
+                <div class="form-group">
+                    <label for="name">Server Name</label>
+                    <input type="text" id="name" name="name" required placeholder="My Awesome Server">
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Server Description</label>
+                    <input type="text" id="description" name="description" placeholder="Description of the server">
+                </div>
+
+                <div class="form-group">
+                    <label for="owner_id">Server Owner</label>
+                    <select id="owner_id" name="owner_id">
+                        <option value="1">Administrator (admin@yunexal.com)</option>
+                    </select>
+                </div>
+
+                <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
+                    <input type="checkbox" id="start_on_install" name="start_on_install" checked style="width: auto;">
+                    <label for="start_on_install" style="margin-bottom: 0;">Start Server When Installed</label>
+                </div>
+            </div>
+
+            <!-- Allocation Management -->
+            <div class="section-card"
+                style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem;">
+                <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
+                    Allocation Management</h3>
+
+                <div class="form-group">
+                    <label for="node_id">Node</label>
+                    <select id="node_id" name="node_id" onchange="updateAllocations()">
+                        <option value="">Auto-Deploy (Best Node)</option>
+                        {% for node in nodes %}
+                        <option value="{{ node.id }}">{{ node.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="default_allocation">Default Allocation</label>
+                    <select id="default_allocation" name="default_allocation">
+                        <option value="">Auto-Assign Port</option>
+                        <!-- Populated by JS -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="additional_ports">Additional Allocations</label>
+                    <input type="text" id="additional_ports" name="additional_ports" placeholder="8080, 9000-9005">
+                    <small style="color: #666;">Leave blank for none. Ports must be assigned to the node
+                        already.</small>
+                </div>
+            </div>
+
+            <!-- Application Feature Limits -->
+            <div class="section-card"
+                style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem;">
+                <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
+                    Application Feature Limits</h3>
+
+                <div class="form-group">
+                    <label for="backup_limit">Backup Limit</label>
+                    <input type="number" id="backup_limit" name="backup_limit" value="0" min="0">
+                    <small style="color: #666;">Nb. of backups allowed. 0 = Unlimited?</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div>
+            <!-- Resource Management -->
+            <div class="section-card"
+                style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem;">
+                <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
+                    Resource Management</h3>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label for="cpu_limit">CPU Limit %</label>
+                        <input type="number" id="cpu_limit" name="cpu_limit" value="0" min="0">
+                        <small style="color: #666;">0 = Unlimited. 100 = 1 Core.</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="cpu_pinning">CPU Pinning</label>
+                        <input type="text" id="cpu_pinning" name="cpu_pinning" placeholder="0, 1-3">
+                        <small style="color: #666;">Advanced. Leave blank for all.</small>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label for="ram_limit">Memory (MB)</label>
+                        <input type="number" id="ram_limit" name="ram_limit" value="0" min="0">
+                        <small style="color: #666;">0 = Unlimited.</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="swap_limit">Swap (MB)</label>
+                        <input type="number" id="swap_limit" name="swap_limit" value="0" min="-1">
+                        <small style="color: #666;">0 = Disabled, -1 = Unlimited.</small>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label for="disk_limit">Disk Space (MB)</label>
+                        <input type="number" id="disk_limit" name="disk_limit" value="0" min="0">
+                        <small style="color: #666;">0 = Unlimited.</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="io_weight">Block IO Weight</label>
+                        <input type="number" id="io_weight" name="io_weight" value="500" min="10" max="1000">
+                    </div>
+                </div>
+
+                <div class="form-group" style="display: flex; align-items: center; gap: 10px; margin-top: 10px;">
+                    <input type="checkbox" id="oom_killer" name="oom_killer" style="width: auto;">
+                    <label for="oom_killer" style="margin-bottom: 0;">Enable OOM Killer</label>
+                </div>
+            </div>
+
+            <!-- Image Configuration -->
+            <div class="section-card"
+                style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem;">
+                <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
+                    Image Configuration</h3>
+
+                <div class="form-group">
+                    <label for="runtime_id">Nest (Runtime)</label>
+                    <select id="runtime_id" name="runtime_id" onchange="updateImages()" required>
+                        <option value="" disabled selected>Select a Nest...</option>
+                        {% for runtime in runtimes %}
+                        <option value="{{ runtime.id }}">{{ runtime.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="image_id">Egg (Image)</label>
+                    <select id="image_id" name="image_id" onchange="updateDockerInfo()" required disabled>
+                        <option value="" disabled selected>Select a Nest first...</option>
+                    </select>
+                    <small id="image_description_help" style="display: block; color: #666; margin-top: 5px;"></small>
+                </div>
+            </div>
+
+            <!-- Docker Configuration -->
+            <div class="section-card"
+                style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem;">
+                <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
+                    Docker Configuration</h3>
+
+                <div class="form-group">
+                    <label for="docker_image">Docker Image</label>
+                    <select id="docker_image" name="docker_image">
+                        <!-- Populated based on Egg -->
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="custom_docker_image">Or enter custom image</label>
+                    <input type="text" id="custom_docker_image" name="custom_docker_image"
+                        placeholder="ghcr.io/pterodactyl/yolks:java_17">
+                </div>
+            </div>
+
+            <!-- Startup Configuration -->
+            <div class="section-card"
+                style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem;">
+                <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
+                    Startup Configuration</h3>
+
+                <div class="form-group">
+                    <label for="startup_command">Startup Command</label>
+                    <input type="text" id="startup_command" name="startup_command" required>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Service Configuration (Full Width) -->
+    <div class="section-card"
+        style="background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem;">
+        <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 15px;">
+            Service Configuration</h3>
+
+        <div id="service_variables_container">
+            <p style="color: #666; font-style: italic;">Select an Egg to view service variables.</p>
+        </div>
+    </div>
+
+    <div
+        style="position: sticky; bottom: 20px; background: white; padding: 1rem; border-radius: 8px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); display: flex; justify-content: flex-end; align-items: center; border: 1px solid #ddd;">
+        <button type="submit" class="btn btn-primary"
+            style="padding: 1rem 2rem; font-size: 1.1rem; font-weight: bold;">Create Server</button>
+    </div>
+
+</form>
+
+<script id="images-data" type="application/json">
+        {{ images_json|safe }}
+    </script>
+<script id="allocations-data" type="application/json">
+        {{ allocations_json|safe }}
+    </script>
+
+<script>
+    // Embed data from backend
+    // We read from the hidden script tags to avoid template syntax errors in JS linters
+    const imagesData = JSON.parse(document.getElementById('images-data').textContent);
+    const allocationsData = JSON.parse(document.getElementById('allocations-data').textContent);
+
+    function updateImages() {
+        const runtimeId = document.getElementById('runtime_id').value;
+        const imageSelect = document.getElementById('image_id');
+
+        imageSelect.innerHTML = '<option value="" disabled selected>Select an Egg...</option>';
+        imageSelect.disabled = true;
+
+        // Reset UI elements
+        document.getElementById('image_description_help').textContent = '';
+        document.getElementById('service_variables_container').innerHTML = '<p style="color: #666; font-style: italic;">Select an Egg to view service variables.</p>';
+        document.getElementById('docker_image').innerHTML = ''; // Clear docker images too
+
+        if (imagesData[runtimeId]) {
+            imagesData[runtimeId].forEach(img => {
+                const opt = document.createElement('option');
+                opt.value = img.id;
+                opt.textContent = img.name;
+                // Store extra data
+                opt.dataset.docker = img.docker_images;
+                opt.dataset.startup = img.startup_command;
+                opt.dataset.variables = img.variables; // Pass variables JSON
+                opt.dataset.description = img.description || '';
+                opt.dataset.requiresPort = img.requires_port; // Boolean
+                imageSelect.appendChild(opt);
+            });
+            imageSelect.disabled = false;
+        }
+    }
+
+    function updateDockerInfo() {
+        const imageSelect = document.getElementById('image_id');
+        const selectedOpt = imageSelect.options[imageSelect.selectedIndex];
+
+        if (!selectedOpt) return;
+
+        const dockerImagesRaw = selectedOpt.dataset.docker || '';
+        const startupCmd = selectedOpt.dataset.startup || '';
+        const variablesRaw = selectedOpt.dataset.variables || '[]';
+        const description = selectedOpt.dataset.description || '';
+        const requiresPort = selectedOpt.dataset.requiresPort === 'true';
+
+        // Update Allocations Label
+        updateAllocations();
+
+        // Show description
+        document.getElementById('image_description_help').textContent = description;
+
+        // Populate Docker Image Select
+        const dockerSelect = document.getElementById('docker_image');
+        dockerSelect.innerHTML = '';
+
+        try {
+            // Try parsing as JSON first (Pterodactyl often stores as {"Display Name": "image:tag"})
+            const dockerImagesJson = JSON.parse(dockerImagesRaw);
+            // If it's an object (map), iterate keys
+            if (typeof dockerImagesJson === 'object' && dockerImagesJson !== null && !Array.isArray(dockerImagesJson)) {
+                Object.entries(dockerImagesJson).forEach(([key, value]) => {
+                    const opt = document.createElement('option');
+                    opt.value = value; // The actual image
+                    opt.textContent = key; // The display name
+                    dockerSelect.appendChild(opt);
+                });
+            } else if (Array.isArray(dockerImagesJson)) {
+                // If it's an array, just use values
+                dockerImagesJson.forEach(img => {
+                    const opt = document.createElement('option');
+                    opt.value = img;
+                    opt.textContent = img;
+                    dockerSelect.appendChild(opt);
+                });
+            } else {
+                throw new Error("Not a JSON object/array");
+            }
+        } catch (e) {
+            // Fallback: Split by newline or common separators
+            const dockerImages = dockerImagesRaw.split(/[\r\n,]+/).map(s => s.trim()).filter(s => s);
+            dockerImages.forEach(img => {
+                const opt = document.createElement('option');
+                opt.value = img;
+                opt.textContent = img;
+                dockerSelect.appendChild(opt);
+            });
+        }
+
+        // Set Startup Command
+        document.getElementById('startup_command').value = startupCmd;
+
+        // Render Service Variables
+        renderVariables(variablesRaw);
+    }
+
+    function renderVariables(variablesJsonStr) {
+        const container = document.getElementById('service_variables_container');
+        if (!container) return;
+
+        container.innerHTML = ''; // Clear current
+
+        let variables = [];
+        try {
+            variables = JSON.parse(variablesJsonStr);
+        } catch (e) {
+            console.error("Failed to parse variables", e);
+            return;
+        }
+
+        if (!variables || variables.length === 0) {
+            container.innerHTML = '<p style="color: #666; font-style: italic;">No additional configuration required for this Egg.</p>';
+            return;
+        }
+
+        variables.forEach(v => {
+            const formGroup = document.createElement('div');
+            formGroup.className = 'form-group';
+            formGroup.style.marginBottom = '1.5rem';
+
+            const label = document.createElement('label');
+            label.htmlFor = 'var_' + v.env_variable;
+            label.textContent = v.name;
+            label.style.display = 'block';
+            label.style.marginBottom = '0.5rem';
+            label.style.fontWeight = '500';
+
+            const desc = document.createElement('small');
+            desc.style.display = 'block';
+            desc.style.color = '#666';
+            desc.style.marginBottom = '0.5rem';
+            desc.textContent = v.description;
+
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.id = 'var_' + v.env_variable;
+            // We need to send these in a way the backend understands. 
+            // Often "environment[VAR_NAME]" or just distinct names the backend collates.
+            // For now, let's use the env_variable as name, and backend needs to handle "unknown" fields as vars
+            // OR we wrap them: environment[VAR_NAME]
+            input.name = `environment[${v.env_variable}]`;
+            input.value = v.default_value || '';
+            input.className = 'form-control'; // Assuming class exists or styles applied globally
+            input.style.width = '100%';
+            input.style.padding = '0.75rem';
+            input.style.border = '1px solid #ddd';
+            input.style.borderRadius = '4px';
+
+            if (!v.user_editable) {
+                input.readOnly = true;
+                input.style.backgroundColor = '#f9f9f9';
+            }
+
+            if (v.rules && v.rules.includes('required')) {
+                input.required = true;
+                label.innerHTML += ' <span style="color: red">*</span>';
+            }
+
+            formGroup.appendChild(label);
+            formGroup.appendChild(desc);
+            formGroup.appendChild(input);
+            container.appendChild(formGroup);
+        });
+    }
+
+    function updateAllocations() {
+        const nodeId = document.getElementById('node_id').value;
+        const allocSelect = document.getElementById('default_allocation');
+
+        // Check if current image requires port
+        const imageSelect = document.getElementById('image_id');
+        const selectedOpt = imageSelect.options[imageSelect.selectedIndex];
+        // If no image selected, default to true (Auto-Assign)
+        const requiresPort = selectedOpt ? (selectedOpt.dataset.requiresPort === 'true') : true;
+
+        allocSelect.innerHTML = '';
+        
+        const defaultOpt = document.createElement('option');
+        defaultOpt.value = "";
+        
+        if (requiresPort) {
+            defaultOpt.textContent = "Auto-Assign Port";
+        } else {
+             defaultOpt.textContent = "None (Do not assign)";
+        }
+        allocSelect.appendChild(defaultOpt);
+
+        if (nodeId && allocationsData[nodeId]) {
+            allocationsData[nodeId].forEach(alloc => {
+                // Only show free ports
+                if (!alloc.server_id) {
+                    const opt = document.createElement('option');
+                    opt.value = alloc.id;
+                    opt.textContent = `${alloc.ip}:${alloc.port}`;
+                    allocSelect.appendChild(opt);
+                }
+            });
+        }
+    }
+</script>
+
+{% endblock %}

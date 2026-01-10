@@ -1,0 +1,280 @@
+{% extends "layout.html" %}
+
+{% block title %}Create Image - {{ panel_name }}{% endblock %}
+
+{% block header %}Create New Image{% endblock %}
+
+{% block content %}
+<style>
+    .was-validated input:invalid,
+    .was-validated textarea:invalid,
+    .was-validated select:invalid {
+        border-color: #dc3545 !important;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+    }
+    .invalid-feedback {
+        display: none;
+        width: 100%;
+        margin-top: 0.25rem;
+        font-size: 0.875em;
+        color: #dc3545;
+    }
+    .was-validated input:invalid ~ .invalid-feedback,
+    .was-validated textarea:invalid ~ .invalid-feedback {
+        display: block;
+    }
+    /* Compact Layout Styles */
+    .compact-grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+    .compact-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+    .compact-grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
+    .full-width { grid-column: 1 / -1; }
+    
+    .form-group { margin-bottom: 0.75rem; min-width: 0; }
+    label { font-size: 0.9rem; margin-bottom: 0.25rem; }
+    .btn { padding: 0.5rem 1rem; font-size: 0.9rem; }
+    
+    /* Make Monaco containers shorter */
+    .monaco-short { height: 120px !important; width: 100%; max-width: 100%; }
+    .monaco-medium { height: 200px !important; width: 100%; max-width: 100%; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js" defer></script>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <a href="/runtimes" style="color: #666; text-decoration: none;">← Back to Runtimes</a>
+</div>
+
+<div style="background: #e3f2fd; border-left: 4px solid #2196F3; color: #0d47a1; padding: 1rem; margin-bottom: 1rem; border-radius: 4px;">
+    <strong>Backward Compatibility:</strong> Yunexal supports importing Pterodactyl Eggs!
+</div>
+
+<form action="/runtimes/{{ runtime_id }}/images/import" method="POST" enctype="multipart/form-data" style="background: white; padding: 1rem; border-radius: 8px; border: 1px solid #ddd; max-width: 1200px; margin-bottom: 1rem; display: flex; align-items: center; gap: 1rem;">
+    <h3 style="margin: 0; font-size: 1rem; white-space: nowrap;">Import from Egg:</h3>
+    <input type="file" name="egg_file" accept=".json" required style="border: 1px solid #ccc; padding: 0.25rem; border-radius: 4px; font-size: 0.9rem;">
+    <button type="submit" class="btn btn-secondary" style="padding: 0.25rem 0.75rem;">Import</button>
+</form>
+
+<form id="createImageForm" action="/runtimes/{{ runtime_id }}/images" method="POST" style="background: white; padding: 1.5rem; border-radius: 8px; border: 1px solid #ddd; max-width: 1200px;">
+    
+    <div class="compact-grid-2">
+        <div class="form-group">
+            <label for="name">Image Name <span class="text-red">*</span></label>
+            <input type="text" id="name" name="name" placeholder="e.g. Minecraft 1.20" required>
+            <div class="invalid-feedback">Required.</div>
+        </div>
+
+        <div class="form-group">
+            <label for="startup_command">Startup Command <span class="text-red">*</span></label>
+            <input type="text" id="startup_command" name="startup_command" placeholder="./server" required>
+            <div class="invalid-feedback">Required.</div>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="2" placeholder="Optional description" style="width: 100%; box-sizing: border-box;"></textarea>
+    </div>
+
+    <div class="form-group">
+        <label>Docker Images <span class="text-red">*</span></label>
+        <div id="docker_images_container" style="max-height: 150px; overflow-y: auto; border: 1px solid #eee; padding: 0.5rem; border-radius: 4px;">
+            <!-- Dynamic rows will be added here -->
+        </div>
+        <button type="button" class="btn btn-secondary" onclick="addDockerImageRow()" style="margin-top: 0.25rem; font-size: 0.8rem;">+ Add Image</button>
+        <textarea id="docker_images" name="docker_images" style="display: none;">{}</textarea>
+        <div id="docker_images_error" class="invalid-feedback" style="display: none;">At least one image required.</div>
+    </div>
+
+    <div class="compact-grid-4">
+        <div class="form-group">
+            <label for="stop_command">Stop Command <span class="text-red">*</span></label>
+            <input type="text" id="stop_command" name="stop_command" placeholder="stop" required>
+            <div class="invalid-feedback">Required.</div>
+        </div>
+        
+         <div class="form-group">
+            <label for="install_container">Install Container <span class="text-red">*</span></label>
+            <input type="text" id="install_container" name="install_container" placeholder="ghcr.io/...">
+            <div class="invalid-feedback">Required.</div>
+        </div>
+
+        <div class="form-group">
+            <label for="install_entrypoint">Entrypoint <span class="text-red">*</span></label>
+            <input type="text" id="install_entrypoint" name="install_entrypoint" placeholder="ash" required>
+            <div class="invalid-feedback">Required.</div>
+        </div>
+
+        <div class="form-group" style="display: flex; align-items: center; padding-top: 1.5rem;">
+            <input type="checkbox" id="requires_port" name="requires_port" value="true" checked style="width: auto; margin-right: 0.5rem;">
+            <label for="requires_port" style="margin: 0; font-weight: normal;">Require Port</label>
+        </div>
+    </div>  
+
+    <div class="form-group" style="padding-top: 1.5rem;">
+        <h4 style="margin: 0 0 0.5rem 0; border-bottom: 1px solid #eee; padding-bottom: 0.25rem;">Advanced Configuration</h4>
+    </div>
+
+    <!-- Full width for Code Editors to proper display JSON -->
+    <div class="form-group">
+        <label for="config_files">Configuration Files (JSON) <span style="font-weight: normal; color: #666; font-size: 0.85em;">- Map config files to be auto-replaced.</span></label>
+        <div id="monaco_config_files" class="monaco-short" style="width: 100%; border: 1px solid #ccc; border-radius: 4px;"></div>
+        <textarea id="config_files" name="config_files" style="display: none;">[]</textarea>
+    </div>
+
+    <div class="compact-grid-2">
+        <div class="form-group">
+            <label for="log_config">Log Config (JSON) <span style="font-weight: normal; color: #666; font-size: 0.85em;">- Define custom log parsing rules.</span></label>
+            <div id="monaco_log_config" class="monaco-short" style="width: 100%; border: 1px solid #ccc; border-radius: 4px;"></div>
+            <textarea id="log_config" name="log_config" style="display: none;">{}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="start_config">Start Config (JSON) <span style="font-weight: normal; color: #666; font-size: 0.85em;">- Defines startup complete messages.</span></label>
+            <div id="monaco_start_config" class="monaco-short" style="width: 100%; border: 1px solid #ccc; border-radius: 4px;"></div>
+            <textarea id="start_config" name="start_config" style="display: none;">{}</textarea>
+        </div>
+    </div>
+
+    <div class="compact-grid-2">
+        <div class="form-group">
+            <label for="install_script">Install Script <span style="font-weight: normal; color: #666; font-size: 0.85em;">- Bash script to install the server.</span></label>
+            <div id="monaco_install_script" class="monaco-medium" style="width: 100%; border: 1px solid #ccc; border-radius: 4px;"></div>
+            <textarea id="install_script" name="install_script" style="display: none;"></textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="variables">Variables (JSON) <span style="font-weight: normal; color: #666; font-size: 0.85em;">- Define user editable environment variables.</span></label>
+            <div id="monaco_variables" class="monaco-medium" style="width: 100%; border: 1px solid #ccc; border-radius: 4px;"></div>
+            <textarea id="variables" name="variables" style="display: none;">[]</textarea>
+        </div>
+    </div>
+    
+    <button type="submit" class="btn btn-primary" style="margin-top: 1rem; width: 100%;">Create Image</button>
+</form>
+
+<script>
+    // Wait for the Monaco loader to be available
+    function waitForRequire(callback) {
+        if (typeof require !== 'undefined') {
+            callback();
+        } else {
+            setTimeout(() => waitForRequire(callback), 100);
+        }
+    }
+
+    waitForRequire(function() {
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+        
+        // Store editors globally to access later
+        window.monacoEditors = {};
+
+        require(['vs/editor/editor.main'], function() {
+            // Initialize Monaco for each field
+            
+            function initEditor(id, lang, textareaId) {
+                const container = document.getElementById(id);
+                const textarea = document.getElementById(textareaId);
+                
+                if (!container || !textarea) return;
+
+                // Ensure container has size, if in a hidden tab or something, it might fail.
+                // But here they are visible block elements.
+                
+                try {
+                    window.monacoEditors[textareaId] = monaco.editor.create(container, {
+                        value: textarea.value,
+                        language: lang,
+                        theme: 'vs', // or vs-dark
+                        automaticLayout: true,
+                        minimap: { enabled: false }
+                    });
+
+                    // Update textarea on change (fallback)
+                    window.monacoEditors[textareaId].onDidChangeModelContent(() => {
+                        textarea.value = window.monacoEditors[textareaId].getValue();
+                    });
+                } catch (e) {
+                    console.error("Monaco init error for " + id + ": ", e);
+                }
+            }
+
+            initEditor('monaco_log_config', 'json', 'log_config');
+            initEditor('monaco_config_files', 'json', 'config_files');
+            initEditor('monaco_start_config', 'json', 'start_config');
+            initEditor('monaco_install_script', 'shell', 'install_script');
+            initEditor('monaco_variables', 'json', 'variables');
+        });
+    });
+
+    // Docker Image Management
+    function addDockerImageRow(name = '', url = '') {
+        const container = document.getElementById('docker_images_container');
+        if (!container) return; // Safety check
+        const div = document.createElement('div');
+        div.className = 'docker-image-row';
+        div.style.display = 'flex';
+        div.style.gap = '0.5rem';
+        div.style.marginBottom = '0.5rem';
+        
+        div.innerHTML = `
+            <input type="text" class="img-name" placeholder="Display Name (e.g. Minecraft 1.20, Rust)" value="${name}" required style="flex: 1;">
+            <input type="text" class="img-url" placeholder="Docker Image (e.g. ghcr.io/pterodactyl/yolks:java_17)" value="${url}" required style="flex: 2;">
+            <button type="button" class="btn btn-danger" onclick="this.parentElement.remove()" style="padding: 0.5rem;">×</button>
+        `;
+        container.appendChild(div);
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Add novalidate via JS for custom validation (Progressive Enhancement)
+        // If JS fails, browser validation will still work.
+        const form = document.getElementById('createImageForm');
+        if (form) {
+            form.setAttribute('novalidate', 'true');
+            
+            // Add initial row
+            addDockerImageRow();
+            
+            form.addEventListener('submit', function (event) {
+                // Sync Docker Images to JSON
+                const imageRows = document.querySelectorAll('.docker-image-row');
+                let hasImage = false;
+                const imagesObj = {};
+                imageRows.forEach(row => {
+                    const name = row.querySelector('.img-name').value;
+                    const url = row.querySelector('.img-url').value;
+                    if (name && url) {
+                        imagesObj[name] = url;
+                        hasImage = true;
+                    }
+                });
+                const imagesJson = JSON.stringify(imagesObj);
+                document.getElementById('docker_images').value = imagesJson;
+        
+                // Custom validation for Docker Images
+                const dockerError = document.getElementById('docker_images_error');
+                if (!hasImage) {
+                     if (dockerError) dockerError.style.display = 'block';
+                     this.classList.add('was-validated');
+                     event.preventDefault();
+                     event.stopPropagation();
+                     return;
+                } else {
+                     if (dockerError) dockerError.style.display = 'none';
+                }
+        
+                // Ensure all Monaco content is synced to textareas before submit
+                if (window.monacoEditors) {
+                     for (const [id, editor] of Object.entries(window.monacoEditors)) {
+                        const el = document.getElementById(id);
+                        if (el) el.value = editor.getValue();
+                    }
+                }
+                
+                if (!this.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                this.classList.add('was-validated');
+            }, false);
+        }
+    });
+</script>
+{% endblock %}

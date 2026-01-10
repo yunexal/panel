@@ -1,0 +1,143 @@
+{% extends "layout.html" %}
+
+{% block title %}Manage Server {{ server.name }} - {{ panel_name }}{% endblock %}
+
+{% block header %}
+<div style="display: flex; align-items: center; justify-content: space-between; width: 100%;">
+    <div style="display: flex; align-items: center; gap: 1rem;">
+        <a href="/servers" style="color: #6c757d; text-decoration: none; display: flex; align-items: center; font-size: 0.9em;">
+            <span style="font-size: 1.2em; margin-right: 0.3rem;">←</span> Back
+        </a>
+        <span>{{ server.name }}</span>
+        <span class="badge {% if server.status == "running" %}badge-success{% else %}badge-warning{% endif %}"
+              style="font-size: 0.5em; vertical-align: middle; margin-left: 0.5rem;
+                     {% if server.status == "running" %}background: #d4edda; color: #155724;{% else %}background: #fff3cd; color: #856404;{% endif %}">
+            {{ server.status }}
+        </span>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div style="display: grid; grid-template-columns: 250px 1fr; gap: 2rem;">
+    <!-- Sidebar -->
+    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+        <div style="background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden;">
+            <div style="padding: 1rem; border-bottom: 1px solid #e9ecef; font-weight: bold; color: #495057;">
+                Controls
+            </div>
+            <div style="padding: 0.5rem;">
+                <!-- Placeholder actions -->
+                <button class="btn btn-sm btn-block" style="text-align: left; margin-bottom: 0.5rem; background: #28a745; color: white;">Start</button>
+                <button class="btn btn-sm btn-block" style="text-align: left; margin-bottom: 0.5rem; background: #dc3545; color: white;">Stop</button>
+                <button class="btn btn-sm btn-block" style="text-align: left; margin-bottom: 0.5rem; background: #ffc107; color: black;">Restart</button>
+            </div>
+        </div>
+
+        <div style="background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden;">
+            <div style="padding: 1rem; border-bottom: 1px solid #e9ecef; font-weight: bold; color: #495057;">
+               Configuration
+            </div>
+            <div style="padding: 0.5rem;">
+               <a href="/servers/{{ server.id }}/edit" class="btn btn-sm btn-block" style="text-align: left; display: block; text-decoration: none; color: #495057; background: #f8f9fa; border: 1px solid #e9ecef;">
+                   Settings
+               </a>
+            </div>
+       </div>
+
+        <div style="background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden;">
+             <div style="padding: 1rem; border-bottom: 1px solid #e9ecef; font-weight: bold; color: #495057;">
+                Details
+             </div>
+             <div style="padding: 1rem; font-size: 0.9rem;">
+                 <div style="margin-bottom: 0.5rem;">
+                     <div style="color: #6c757d; font-size: 0.8em;">ID</div>
+                     <code style="background: #f8f9fa; padding: 2px 4px; border-radius: 4px;">{{ server.id }}</code>
+                 </div>
+                 <div style="margin-bottom: 0.5rem;">
+                     <div style="color: #6c757d; font-size: 0.8em;">Image</div>
+                     <div>{{ server.docker_image }}</div>
+                 </div>
+                 <div style="margin-bottom: 0.5rem;">
+                     <div style="color: #6c757d; font-size: 0.8em;">Node</div>
+                     <div>{{ server.node_id }}</div>
+                 </div>
+             </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <!-- Stats / Console -->
+        <div style="background: #1e1e1e; color: #f8f8f2; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); min-height: 400px; padding: 1rem; font-family: monospace;">
+            <div>> Server console output would go here...</div>
+            <div>> connecting to socket...</div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/xterm/3.14.5/xterm.min.css" integrity="sha512-i20iz6Yv4k3f/XoBb3qFpw19/yIuX96USVpV/C53535q4S/XvkE01rtO5J5+F28O8vlwY8zOX+5343d6+1QO6g==" crossorigin="anonymous" referrerpolicy="no-access" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/3.14.5/xterm.min.js" integrity="sha512-2uLNge2+rAG5PrUSN5PjU9ADq6ngh9V2d9d1Y3vbT/74O19Tlg3uMZw4Yy6DQi9Xy/cjoGKiHw0c1Q5+5h5z5g==" crossorigin="anonymous" referrerpolicy="no-access"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xterm/3.14.5/addons/fit/fit.min.js" integrity="sha512-An/uK8FV8W416V1v27Z5J9E54cp7ykO6vC94jk2xZzKb5vPb5M9Yt8IvmdT7dm6wK6tQOA3cKTDjFx8W82ySg==" crossorigin="anonymous" referrerpolicy="no-access"></script>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const term = new Terminal({
+            cursorBlink: true,
+            theme: {
+                background: '#1e1e1e',
+                foreground: '#f8f8f2'
+            }
+        });
+        
+        const container = document.getElementById('terminal-container');
+        // Clear placeholder text
+        container.innerHTML = '';
+        term.open(container);
+        term.fit();
+        
+        // Dynamic resize support
+        window.addEventListener('resize', function() {
+            term.fit();
+        });
+        
+        const uuid = "{{ server.id }}";
+        const nodeUrl = "ws://" + "{{ node.ip }}" + ":" + "{{ node.port }}";
+        const wsUrl = `${nodeUrl}/containers/${uuid}/console`;
+        
+        term.writeln('> Connecting to server...');
+        
+        let socket;
+        
+        function connect() {
+            socket = new WebSocket(wsUrl);
+            
+            socket.onopen = function() {
+                term.writeln('> Connected!');
+                term.write('\r\n');
+            };
+            
+            socket.onmessage = function(msg) {
+                term.write(msg.data);
+            };
+            
+            socket.onerror = function(e) {
+                term.writeln('\r\n> Connection Error');
+            };
+            
+            socket.onclose = function() {
+                term.writeln('\r\n> Connection Closed. Reconnecting in 5s...');
+                setTimeout(connect, 5000);
+            };
+            
+            term.on('data', function(data) {
+                if(socket.readyState === WebSocket.OPEN) {
+                    socket.send(data);
+                }
+            });
+        }
+        
+        connect();
+    });
+</script>

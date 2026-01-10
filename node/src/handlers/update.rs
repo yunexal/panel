@@ -39,7 +39,7 @@ async fn perform_update(panel_url: &str) -> Result<(), Box<dyn std::error::Error
     // Ensure panel_url does not have trailing slash to avoid double slash, 
     // though most browsers/libs handle it.
     let base_url = panel_url.trim_end_matches('/');
-    let url = format!("{}/public/yunexal-node", base_url);
+    let url = format!("{}/downloads/yunexal-node", base_url);
     
     println!("Downloading update from: {}", url);
 
