@@ -7,8 +7,6 @@
 <a href="/nodes/new" class="btn btn-success">Add New Node</a>
 {% endblock %}
 
-{% block footer %}{% endblock %}
-
 {% block content %}
 <div class="node-list" hx-get="/nodes" hx-trigger="every 5s" hx-select=".node-list" hx-swap="outerHTML">
     {% for node in nodes %}
@@ -24,7 +22,28 @@
                     {% if node.is_online %}
                     <span>CPU: {{ node.cpu_usage }}%</span>
                     <span>RAM: {{ node.ram_usage }}/{{ node.ram_total }} MB</span>
-                    <span>Disk: {{ node.disk_usage }}/{{ node.disk_total }} MB</span>
+                    
+                    {% if !node.disks.is_empty() %}
+                    <div style="display: flex; flex-direction: column;">
+                        {% for disk in node.disks %}
+                        <span style="display: flex; align-items: center; gap: 4px;">
+                            {% if disk.type_ == "SSD" %}
+                                <span class="material-symbols-outlined" title="SSD" style="color: #28a745;">memory</span>
+                            {% else if disk.type_ == "HDD" %}
+                                <span class="material-symbols-outlined" title="HDD" style="color: #666;">hard_drive</span>
+                            {% else %}
+                                <span class="material-symbols-outlined" title="Unknown" style="color: #888;">device_unknown</span>
+                            {% endif %}
+                            
+                            <b>{{ disk.name }}</b>: 
+                            <span data-format="bytes">{{ disk.total_space - disk.available_space }}</span> used / <span data-format="bytes">{{ disk.total_space }}</span>
+                        </span>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                        <span>Disk: {{ node.disk_usage }}/{{ node.disk_total }} MB</span>
+                    {% endif %}
+
                     <span>Uptime: {{ node.uptime_formatted }}</span>
                     <span style="color: #666;">v{{ node.version }}</span>
                     {% endif %}

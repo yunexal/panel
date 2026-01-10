@@ -1,10 +1,10 @@
-use sqlx::postgres::PgPool;
+use crate::models::{HeartbeatPayload, Node};
 use redis::aio::ConnectionManager;
 use reqwest::Client as HttpClient;
+use sqlx::postgres::PgPool;
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use std::collections::HashMap;
-use crate::models::{Node, HeartbeatPayload};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -12,6 +12,8 @@ pub struct AppState {
     pub redis: Option<ConnectionManager>,
     pub http_client: HttpClient,
     pub panel_name: Arc<RwLock<String>>,
+    pub panel_font: Arc<RwLock<String>>,
+    pub panel_font_url: Arc<RwLock<String>>,
     pub nodes_cache: Arc<RwLock<Option<Vec<Node>>>>,
     pub heartbeats_cache: Arc<RwLock<HashMap<String, HeartbeatPayload>>>,
 }
@@ -29,7 +31,8 @@ impl AppState {
         // 2. Check Redis Cache
         if let Some(manager) = &self.redis {
             let mut con = manager.clone();
-            let cached: Result<String, _> = redis::AsyncCommands::get(&mut con, "cache:nodes").await;
+            let cached: Result<String, _> =
+                redis::AsyncCommands::get(&mut con, "cache:nodes").await;
             if let Ok(json) = cached {
                 if let Ok(nodes) = serde_json::from_str::<Vec<Node>>(&json) {
                     // Populate RAM
@@ -50,9 +53,10 @@ impl AppState {
         // 4. Update Caches
         // Update Redis
         if let Some(manager) = &self.redis {
-             let mut con = manager.clone();
-             let json = serde_json::to_string(&nodes).unwrap_or_default();
-             let _: Result<(), _> = redis::AsyncCommands::set_ex(&mut con, "cache:nodes", json, 300).await; // 5 min TTL
+            let mut con = manager.clone();
+            let json = serde_json::to_string(&nodes).unwrap_or_default();
+            let _: Result<(), _> =
+                redis::AsyncCommands::set_ex(&mut con, "cache:nodes", json, 300).await; // 5 min TTL
         }
 
         // Update RAM
@@ -74,4 +78,3 @@ impl AppState {
         }
     }
 }
-

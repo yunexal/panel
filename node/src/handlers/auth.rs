@@ -64,6 +64,11 @@ pub async fn update_token_handler(
         uptime: 0,
         version: env!("CARGO_PKG_VERSION").to_string(),
         timestamp: chrono::Utc::now().timestamp_millis(),
+        disk_read: 0,
+        disk_write: 0,
+        net_rx: 0,
+        net_tx: 0,
+        disks: vec![],
     };
 
     let resp = client.post(&url)

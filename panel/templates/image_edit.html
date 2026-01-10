@@ -1,0 +1,277 @@
+{% extends "layout.html" %}
+
+{% block title %}Edit Image - {{ panel_name }}{% endblock %}
+
+{% block header %}Edit Image{% endblock %}
+
+{% block content %}
+<style>
+    .was-validated input:invalid,
+    .was-validated textarea:invalid,
+    .was-validated select:invalid {
+        border-color: #dc3545 !important;
+        box-shadow: 0 0 0 0.2rem rgba(220, 53, 69, 0.25);
+    }
+    .invalid-feedback {
+        display: none;
+        width: 100%;
+        margin-top: 0.25rem;
+        font-size: 0.875em;
+        color: #dc3545;
+    }
+    .was-validated input:invalid ~ .invalid-feedback,
+    .was-validated textarea:invalid ~ .invalid-feedback {
+        display: block;
+    }
+    /* Compact Layout Styles */
+    .compact-grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 1rem; }
+    .compact-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+    .compact-grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
+    .full-width { grid-column: 1 / -1; }
+    
+    .form-group { margin-bottom: 0.75rem; min-width: 0; }
+    label { font-size: 0.9rem; margin-bottom: 0.25rem; }
+    .btn { padding: 0.5rem 1rem; font-size: 0.9rem; }
+    
+    /* Make Monaco containers shorter */
+    .monaco-short { height: 120px !important; width: 100%; max-width: 100%; }
+    .monaco-medium { height: 200px !important; width: 100%; max-width: 100%; }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.min.js" defer></script>
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+    <a href="/runtimes" style="color: #666; text-decoration: none;">← Back to Runtimes</a>
+</div>
+
+<form id="editImageForm" action="/runtimes/{{ runtime_id }}/images/{{ image.id }}/update" method="POST" style="background: white; padding: 1.5rem; border-radius: 8px; border: 1px solid #ddd; max-width: 1200px;">
+    
+    <div class="compact-grid-2">
+        <div class="form-group">
+            <label for="name">Image Name <span class="text-red">*</span></label>
+            <input type="text" id="name" name="name" value="{{ image.name }}" placeholder="e.g. Minecraft 1.20" required>
+            <div class="invalid-feedback">Required.</div>
+        </div>
+
+        <div class="form-group">
+            <label for="startup_command">Startup Command <span class="text-red">*</span></label>
+            <input type="text" id="startup_command" name="startup_command" value="{{ image.startup_command }}" placeholder="./server" required>
+            <div class="invalid-feedback">Required.</div>
+        </div>
+    </div>
+
+    <div class="form-group">
+        <label for="description">Description</label>
+        <textarea id="description" name="description" rows="2" placeholder="Optional description" style="width: 100%; box-sizing: border-box;">{{ image.description.as_deref().unwrap_or("") }}</textarea>
+    </div>
+
+    <div class="form-group">
+        <label>Docker Images <span class="text-red">*</span></label>
+        <div id="docker_images_container" style="max-height: 150px; overflow-y: auto; border: 1px solid #eee; padding: 0.5rem; border-radius: 4px;">
+            <!-- Dynamic rows will be added here -->
+        </div>
+        <button type="button" class="btn btn-secondary" onclick="addDockerImageRow()" style="margin-top: 0.25rem; font-size: 0.8rem;">+ Add Image</button>
+        <textarea id="docker_images" name="docker_images" style="display: none;" required>{{ image.docker_images }}</textarea>
+        <div id="docker_images_error" class="invalid-feedback" style="display: none;">At least one image required.</div>
+    </div>
+
+    <div class="compact-grid-4">
+        <div class="form-group">
+            <label for="stop_command">Stop Command <span class="text-red">*</span></label>
+            <input type="text" id="stop_command" name="stop_command" value="{{ image.stop_command }}" placeholder="stop" required>
+            <div class="invalid-feedback">Required.</div>
+        </div>
+        
+         <div class="form-group">
+            <label for="install_container">Install Container <span class="text-red">*</span></label>
+            <input type="text" id="install_container" name="install_container" value="{{ image.install_container }}" placeholder="ghcr.io/..." required>
+            <div class="invalid-feedback">Required.</div>
+        </div>
+
+        <div class="form-group">
+            <label for="install_entrypoint">Entrypoint <span class="text-red">*</span></label>
+            <input type="text" id="install_entrypoint" name="install_entrypoint" value="{{ image.install_entrypoint }}" placeholder="ash" required>
+            <div class="invalid-feedback">Required.</div>
+        </div>
+
+        <div class="form-group" style="display: flex; align-items: center; padding-top: 1.5rem;">
+            <input type="checkbox" id="requires_port" name="requires_port" value="true" {% if image.requires_port %}checked{% endif %} style="width: auto; margin-right: 0.5rem;">
+            <label for="requires_port" style="margin: 0; font-weight: normal;">Require Port</label>
+        </div>
+    </div>
+
+    <div class="form-group" style="padding-top: 1.5rem;">
+        <h4 style="margin: 0 0 0.5rem 0; border-bottom: 1px solid #eee; padding-bottom: 0.25rem;">Advanced Configuration</h4>
+    </div>
+
+    <div class="form-group">
+        <label for="config_files">Configuration Files (JSON) <span style="font-weight: normal; color: #666; font-size: 0.85em;">- Map config files to be auto-replaced.</span></label>
+        <div id="monaco_config_files" class="monaco-short" style="width: 100%; border: 1px solid #ccc; border-radius: 4px;"></div>
+        <textarea id="config_files" name="config_files" style="display: none;">{{ image.config_files }}</textarea>
+    </div>
+
+    <div class="compact-grid-2">
+        <div class="form-group">
+            <label for="log_config">Log Config (JSON) <span style="font-weight: normal; color: #666; font-size: 0.85em;">- Define custom log parsing rules.</span></label>
+            <div id="monaco_log_config" class="monaco-short" style="width: 100%; border: 1px solid #ccc; border-radius: 4px;"></div>
+            <textarea id="log_config" name="log_config" style="display: none;">{{ image.log_config }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="start_config">Start Config (JSON) <span style="font-weight: normal; color: #666; font-size: 0.85em;">- Defines startup complete messages.</span></label>
+            <div id="monaco_start_config" class="monaco-short" style="width: 100%; border: 1px solid #ccc; border-radius: 4px;"></div>
+            <textarea id="start_config" name="start_config" style="display: none;">{{ image.start_config }}</textarea>
+        </div>
+    </div>
+
+    <div class="compact-grid-2">
+        <div class="form-group">
+            <label for="install_script">Install Script <span style="font-weight: normal; color: #666; font-size: 0.85em;">- Bash script to install the server.</span></label>
+            <div id="monaco_install_script" class="monaco-medium" style="width: 100%; border: 1px solid #ccc; border-radius: 4px;"></div>
+            <textarea id="install_script" name="install_script" style="display: none;">{{ image.install_script }}</textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="variables">Variables (JSON) <span style="font-weight: normal; color: #666; font-size: 0.85em;">- Define user editable environment variables.</span></label>
+            <div id="monaco_variables" class="monaco-medium" style="width: 100%; border: 1px solid #ccc; border-radius: 4px;"></div>
+            <textarea id="variables" name="variables" style="display: none;">{{ image.variables }}</textarea>
+        </div>
+    </div>
+    
+    <div style="display: flex; gap: 1rem; align-items: center; justify-content: space-between; margin-top: 1rem;">
+        <button type="submit" class="btn btn-primary" style="flex: 1;">Save Changes</button>
+        <button type="button" hx-delete="/runtimes/{{ runtime_id }}/images/{{ image.id }}" hx-confirm="Are you sure you want to delete this image?" hx-target="body" hx-push-url="/runtimes" class="btn btn-danger">Delete Image</button>
+    </div>
+</form>
+
+<script>
+    // Wait for the Monaco loader to be available
+    function waitForRequire(callback) {
+        if (typeof require !== 'undefined') {
+            callback();
+        } else {
+            setTimeout(() => waitForRequire(callback), 100);
+        }
+    }
+
+    waitForRequire(function() {
+        require.config({ paths: { 'vs': 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' }});
+        
+        window.monacoEditors = {};
+
+        require(['vs/editor/editor.main'], function() {
+            function initEditor(id, lang, textareaId) {
+                const container = document.getElementById(id);
+                const textarea = document.getElementById(textareaId);
+                
+                if (!container || !textarea) return;
+
+                window.monacoEditors[textareaId] = monaco.editor.create(container, {
+                    value: textarea.value,
+                    language: lang,
+                    theme: 'vs', 
+                    automaticLayout: true,
+                    minimap: { enabled: false }
+                });
+
+                window.monacoEditors[textareaId].onDidChangeModelContent(() => {
+                    textarea.value = window.monacoEditors[textareaId].getValue();
+                });
+            }
+
+            initEditor('monaco_log_config', 'json', 'log_config');
+            initEditor('monaco_config_files', 'json', 'config_files');
+            initEditor('monaco_start_config', 'json', 'start_config');
+            initEditor('monaco_install_script', 'shell', 'install_script');
+            initEditor('monaco_variables', 'json', 'variables');
+        });
+    });
+
+    // Docker Image Management
+    function addDockerImageRow(name = '', url = '') {
+        const container = document.getElementById('docker_images_container');
+        if (!container) return;
+        const div = document.createElement('div');
+        div.className = 'docker-image-row';
+        div.style.display = 'flex';
+        div.style.gap = '0.5rem';
+        div.style.marginBottom = '0.5rem';
+        
+        div.innerHTML = `
+            <input type="text" class="img-name" placeholder="Display Name (e.g. Minecraft 1.20, Rust)" value="${name}" required style="flex: 1;">
+            <input type="text" class="img-url" placeholder="Docker Image (e.g. ghcr.io/pterodactyl/yolks:java_17)" value="${url}" required style="flex: 2;">
+            <button type="button" class="btn btn-danger" onclick="this.parentElement.remove()" style="padding: 0.5rem;">×</button>
+        `;
+        container.appendChild(div);
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('editImageForm');
+        if (form) {
+            form.setAttribute('novalidate', 'true');
+
+            // Initialize existing images
+            try {
+                const existingImages = JSON.parse(document.getElementById('docker_images').value || '{}');
+                if (typeof existingImages === 'object' && existingImages !== null) {
+                    for (const [name, url] of Object.entries(existingImages)) {
+                        addDockerImageRow(name, url);
+                    }
+                } else {
+                     addDockerImageRow('Default', document.getElementById('docker_images').value);
+                }
+                if (Object.keys(existingImages).length === 0) addDockerImageRow();
+            } catch (e) {
+                const raw = document.getElementById('docker_images').value;
+                if (raw && raw.trim()) {
+                     raw.split('\n').filter(line => line.trim()).forEach(line => {
+                        addDockerImageRow('Default', line.trim());
+                    });
+                } else {
+                    addDockerImageRow();
+                }
+            }
+        
+            form.addEventListener('submit', function (event) {
+                // Sync Docker Images to JSON
+                const imageRows = document.querySelectorAll('.docker-image-row');
+                let hasImage = false;
+                const imagesObj = {};
+                imageRows.forEach(row => {
+                    const name = row.querySelector('.img-name').value;
+                    const url = row.querySelector('.img-url').value;
+                    if (name && url) {
+                        imagesObj[name] = url;
+                        hasImage = true;
+                    }
+                });
+                document.getElementById('docker_images').value = JSON.stringify(imagesObj);
+        
+                // Custom validation for Docker Images
+                const dockerError = document.getElementById('docker_images_error');
+                if (!hasImage) {
+                     if (dockerError) dockerError.style.display = 'block';
+                     this.classList.add('was-validated');
+                     event.preventDefault();
+                     event.stopPropagation();
+                     return;
+                } else {
+                     if (dockerError) dockerError.style.display = 'none';
+                }
+        
+                if (window.monacoEditors) {
+                     for (const [id, editor] of Object.entries(window.monacoEditors)) {
+                        const el = document.getElementById(id);
+                        if (el) el.value = editor.getValue();
+                    }
+                }
+                
+                if (!this.checkValidity()) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                }
+                this.classList.add('was-validated');
+            }, false);
+        }
+    });
+
+</script>
+{% endblock %}

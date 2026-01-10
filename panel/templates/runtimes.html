@@ -1,0 +1,143 @@
+{% extends "layout.html" %}
+
+{% block title %}Runtimes - {{ panel_name }}{% endblock %}
+
+{% block header %}Runtimes{% endblock %}
+{% block header_actions %}
+<a href="/runtimes/new" class="btn btn-success">Create New Runtime</a>
+{% endblock %}
+
+{% block content %}
+<style>
+    /* Details/Summary Logic */
+    details > summary { list-style: none; }
+    details > summary::-webkit-details-marker { display: none; }
+    
+    details[open] .runtime-chevron { transform: rotate(90deg); }
+    
+    /* Animation for the images list */
+    details[open] + .images-list {
+        display: block;
+    }
+    .runtime-ghost {
+        opacity: 0.5;
+        background: #f8f9fa;
+    }
+</style>
+<!-- 
+    Icons Library: Material Symbols Outlined 
+    Link: https://fonts.google.com/icons
+-->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+
+<div class="runtime-list" id="runtime-list">
+    {% if runtimes.is_empty() %}
+    <div style="background: white; padding: 2rem; border-radius: 8px; border: 1px solid #ddd; text-align: center; color: #666;">
+        <p>No runtimes created yet.</p>
+        <p style="margin-top: 1rem; font-size: 0.9em;">
+            Runtimes contain the Images used by servers.
+        </p>
+    </div>
+    {% else %}
+        {% for item in runtimes %}
+        <div class="runtime-item" data-id="{{ item.runtime.id }}" style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 1rem; border-left: 5px solid {{ item.runtime.color.as_deref().unwrap_or("#007bff") }}; overflow: hidden;">
+            
+            <details {% if item.image_count > 0 %}{% else %}open onclick="return false;"{% endif %}>
+                <summary style="padding: 1.5rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;">
+                    <!-- Left Side: Chevron & Info -->
+                    <div style="display: flex; gap: 1rem; align-items: flex-start; flex-grow: 1;">
+                        <!-- Drag Handle -->
+                        <div class="drag-handle" style="cursor: move; padding-top: 0.3rem; color: #ccc;" onclick="event.preventDefault();">
+                            <span class="material-symbols-outlined">drag_indicator</span>
+                        </div>
+
+                        {% if item.image_count > 0 %}
+                        <div class="runtime-chevron" style="margin-top: 0.3rem; color: #999; transition: transform 0.2s;">
+                            ▶
+                        </div>
+                        {% else %}
+                        <div style="width: 1em;"></div>
+                        {% endif %}
+
+                        <div>
+                            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                <h3 style="margin: 0;">{{ item.runtime.name }}</h3>
+                                <div style="background: #f0f0f0; padding: 2px 10px; border-radius: 12px; font-size: 0.75em; color: #666; font-weight: 500;">
+                                    {{ item.image_count }} images
+                                </div>
+                            </div>
+                            
+                            {% if let Some(desc) = item.runtime.description %}
+                                <p style="color: #666; margin: 0.5rem 0 0 0; font-size: 0.95em;">{{ desc }}</p>
+                            {% endif %}
+                            <div style="margin-top: 0.5rem; font-size: 0.8em; color: #aaa;">ID: {{ item.runtime.id }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Right Side: Actions (Stop propagation to prevent toggle) -->
+                    <div style="display: flex; gap: 0.5rem; margin-left: 1rem;" onclick="event.preventDefault(); event.stopPropagation();">
+                        <!-- Use object tags or similar trick if onclick is stripped, but standard inline JS usually works -->
+                        <a href="/runtimes/{{ item.runtime.id }}/images/new" class="btn btn-success" style="font-size: 0.9em; white-space: nowrap;">Create Image</a>
+                        <a href="/runtimes/{{ item.runtime.id }}/edit" class="btn btn-primary" style="font-size: 0.9em; white-space: nowrap;">Manage</a>
+                    </div>
+                </summary>
+
+                <!-- Expandable Content -->
+                {% if !item.images.is_empty() %}
+                <div style="border-top: 1px solid #f0f0f0; background-color: #fafafa;">
+                    {% for image in item.images %}
+                    <div style="padding: 0.75rem 1.5rem 0.75rem 3.5rem; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; background: #fff;">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <div style="width: 32px; height: 32px; background: #f0f0f0; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #bbb; font-weight: bold; font-size: 0.8em;">
+                                IMG
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; color: #333;">{{ image.name }}</div>
+                                <div style="font-size: 0.8em; color: #777; font-family: monospace; margin-top: 2px;">
+                                    {{ image.docker_images.lines().next().unwrap_or("") }}
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <a href="/runtimes/{{ item.runtime.id }}/images/{{ image.id }}/edit" class="btn btn-sm btn-secondary" style="background: white; border: 1px solid #ddd; color: #333;">Edit</a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+            </details>
+        </div>
+        {% endfor %}
+    {% endif %}
+</div>
+
+<script>
+    new Sortable(document.getElementById('runtime-list'), {
+        handle: '.drag-handle',
+        animation: 150,
+        ghostClass: 'runtime-ghost',
+        onEnd: function (evt) {
+            var itemEl = evt.item;  // dragged HTMLElement
+            
+            // Get all IDs in new order
+            const ids = Array.from(document.querySelectorAll('.runtime-item')).map(el => el.getAttribute('data-id'));
+            
+            // Send to backend
+            fetch('/runtimes/reorder', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ ids: ids }),
+            }).then(response => {
+                if (response.ok) {
+                    console.log('Order updated');
+                } else {
+                    console.error('Failed to update order');
+                }
+            });
+        }
+    });
+</script>
+{% endblock %}

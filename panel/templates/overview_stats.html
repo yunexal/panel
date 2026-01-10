@@ -1,0 +1,67 @@
+<div class="stats-grid">
+    <!-- 1. Nodes Status -->
+    <div class="stat-card">
+        <div class="stat-value">
+            <span style="color: #28a745">{{ online_nodes }}</span> / {{ total_nodes }}
+        </div>
+        <div class="stat-label">Nodes Online</div>
+    </div>
+    
+    <!-- 2. CPU -->
+    <div class="stat-card">
+            <div class="stat-value">{{ total_cpu|fmt("{:.1}") }}%</div>
+            <div class="stat-label">Total CPU Load</div>
+    </div>
+
+    <!-- 3. RAM -->
+    <div class="stat-card">
+        <div class="stat-value">
+                <span data-format="bytes">{{ used_ram }}</span>
+                <div style="font-size: 0.4em; color: #999; margin-top: -5px;">of <span data-format="bytes">{{ total_ram }}</span></div>
+        </div>
+        <div class="stat-label">RAM Usage</div>
+    </div>
+
+    <!-- 4. Disk Storage -->
+        <div class="stat-card">
+        <div class="stat-value">
+            <span data-format="bytes">{{ used_disk }}</span>
+                <div style="font-size: 0.4em; color: #999; margin-top: -5px;">of <span data-format="bytes">{{ total_disk }}</span></div>
+        </div>
+        <div class="stat-label">Disk Storage</div>
+    </div>
+
+    <!-- 5. Disk I/O -->
+    <div class="stat-card">
+        <div class="stat-value" style="font-size: 1.4rem; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+            <div><span style="font-size: 0.8em; color: #28a745">R:</span> <span data-format="bytes">{{ disk_read_speed }}</span>/s</div>
+            <div><span style="font-size: 0.8em; color: #dc3545">W:</span> <span data-format="bytes">{{ disk_write_speed }}</span>/s</div>
+        </div>
+        <div class="stat-label">Disk I/O</div>
+    </div>
+
+    <!-- 6. Network I/O -->
+    <div class="stat-card">
+        <div class="stat-value" style="font-size: 1.4rem; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+            <div><span style="font-size: 0.8em; color: #28a745">↓</span> <span data-format="bytes">{{ net_rx_speed }}</span>/s</div>
+            <div><span style="font-size: 0.8em; color: #007bff">↑</span> <span data-format="bytes">{{ net_tx_speed }}</span>/s</div>
+        </div>
+        <div class="stat-label">Network I/O</div>
+    </div>
+</div>
+
+<script>
+    // Re-run formatter after swap
+    if (typeof formatBytes === 'function') {
+        document.querySelectorAll('#stats-container [data-format="bytes"]').forEach(el => {
+             if (el.dataset.formatted) return;
+             const raw = el.innerText;
+             const val = parseInt(raw);
+             if (!isNaN(val)) {
+                 el.innerText = formatBytes(val);
+                 el.dataset.formatted = "true";
+                 el.title = raw + " bytes";
+             }
+        });
+    }
+</script>

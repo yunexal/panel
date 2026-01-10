@@ -4,11 +4,54 @@
 
 {% block styles %}
 <style>
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
-.stat-card { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); text-align: center; }
-.stat-value { font-size: 2.5rem; font-weight: bold; color: #333; }
-.stat-label { color: #666; margin-top: 0.5rem; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 1px; }
-.section-card { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 2rem; }
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    @media (max-width: 992px) {
+        .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+        }
+    }
+
+    @media (max-width: 576px) {
+        .stats-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .stat-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+
+    .stat-value {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #333;
+    }
+
+    .stat-label {
+        color: #666;
+        margin-top: 0.5rem;
+        text-transform: uppercase;
+        font-size: 0.8rem;
+        letter-spacing: 1px;
+    }
+
+    .section-card {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        margin-bottom: 2rem;
+    }
 </style>
 {% endblock %}
 
@@ -17,35 +60,128 @@
 {% block content %}
 
 <!-- Tabs Navigation -->
-<ul class="nav nav-tabs" id="overviewTabs" role="tablist" style="margin-bottom: 20px; border-bottom: 1px solid #dee2e6; display: flex; list-style: none; padding-left: 0;">
-  <li class="nav-item">
-    <a class="nav-link active" id="stats-tab" href="#stats" onclick="openTab(event, 'stats')" style="padding: 10px 15px; text-decoration: none; color: #495057; border: 1px solid #dee2e6; border-bottom-color: transparent; border-top-left-radius: 0.25rem; border-top-right-radius: 0.25rem; margin-right: 2px; background: white; cursor: pointer;">Statistics</a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link" id="settings-tab" href="#settings" onclick="openTab(event, 'settings')" style="padding: 10px 15px; text-decoration: none; color: #007bff; border: 1px solid transparent; border-bottom-color: transparent; border-top-left-radius: 0.25rem; border-top-right-radius: 0.25rem; margin-right: 2px; cursor: pointer;">Settings</a>
-  </li>
-  <li class="nav-item">
-    <a class="nav-link" id="users-tab" href="#users" onclick="openTab(event, 'users')" style="padding: 10px 15px; text-decoration: none; color: #007bff; border: 1px solid transparent; border-bottom-color: transparent; border-top-left-radius: 0.25rem; border-top-right-radius: 0.25rem; margin-right: 2px; cursor: pointer;">Users</a>
-  </li>
+<ul class="nav nav-tabs" id="overviewTabs" role="tablist"
+    style="margin-bottom: 20px; border-bottom: 1px solid #dee2e6; display: flex; list-style: none; padding-left: 0;">
+    <li class="nav-item">
+        <a class="nav-link active" id="stats-tab" href="#stats" onclick="openTab(event, 'stats')"
+            style="padding: 10px 15px; text-decoration: none; color: #495057; border: 1px solid #dee2e6; border-bottom-color: transparent; border-top-left-radius: 0.25rem; border-top-right-radius: 0.25rem; margin-right: 2px; background: white; cursor: pointer;">Statistics</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" id="settings-tab" href="#settings" onclick="openTab(event, 'settings')"
+            style="padding: 10px 15px; text-decoration: none; color: #007bff; border: 1px solid transparent; border-bottom-color: transparent; border-top-left-radius: 0.25rem; border-top-right-radius: 0.25rem; margin-right: 2px; cursor: pointer;">Settings</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" id="users-tab" href="#users" onclick="openTab(event, 'users')"
+            style="padding: 10px 15px; text-decoration: none; color: #007bff; border: 1px solid transparent; border-bottom-color: transparent; border-top-left-radius: 0.25rem; border-top-right-radius: 0.25rem; margin-right: 2px; cursor: pointer;">Users</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link" id="wireguard-tab" href="#wireguard" onclick="openTab(event, 'wireguard')"
+            style="padding: 10px 15px; text-decoration: none; color: #007bff; border: 1px solid transparent; border-bottom-color: transparent; border-top-left-radius: 0.25rem; border-top-right-radius: 0.25rem; margin-right: 2px; cursor: pointer;">
+            WireGuard
+            <span
+                style="font-size: 0.6em; background: #e9ecef; color: #495057; padding: 2px 6px; border-radius: 10px; font-weight: bold; vertical-align: middle;">SOON</span>
+        </a>
+    </li>
 </ul>
 
 <!-- Statistics Tab -->
 <div id="stats" class="tab-content" style="display: block;">
-    <div class="stats-grid">
-        <div class="stat-card">
-            <div class="stat-value">{{ total_nodes }}</div>
-            <div class="stat-label">Total Nodes</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value" style="color: #28a745">{{ online_nodes }}</div>
-            <div class="stat-label">Online Nodes</div>
-        </div>
-        <div class="stat-card">
-           <div class="stat-value" style="color: #007bff">{{ panel_version }}</div>
-           <div class="stat-label">Panel Version</div>
+    <div id="stats-container" hx-get="/overview/stats" hx-trigger="every 5s" hx-swap="innerHTML">
+        <div class="stats-grid">
+            <!-- 1. Nodes Status -->
+            <div class="stat-card">
+                <div class="stat-value">
+                    <span style="color: #28a745">{{ online_nodes }}</span> / {{ total_nodes }}
+                </div>
+                <div class="stat-label">Nodes Online</div>
+            </div>
+
+            <!-- 2. CPU -->
+            <div class="stat-card">
+                <div class="stat-value">{{ total_cpu|fmt("{:.1}") }}%</div>
+                <div class="stat-label">Total CPU Load</div>
+            </div>
+
+            <!-- 3. RAM -->
+            <div class="stat-card">
+                <div class="stat-value">
+                    <span data-format="bytes">{{ used_ram }}</span>
+                    <div style="font-size: 0.4em; color: #999; margin-top: -5px;">of <span data-format="bytes">{{
+                            total_ram }}</span></div>
+                </div>
+                <div class="stat-label">RAM Usage</div>
+            </div>
+
+            <!-- 4. Disk Storage -->
+            <div class="stat-card">
+                <div class="stat-value">
+                    <span data-format="bytes">{{ used_disk }}</span>
+                    <div style="font-size: 0.4em; color: #999; margin-top: -5px;">of <span data-format="bytes">{{
+                            total_disk }}</span></div>
+                </div>
+                <div class="stat-label">Disk Storage</div>
+            </div>
+
+            <!-- 5. Disk I/O -->
+            <div class="stat-card">
+                <div class="stat-value"
+                    style="font-size: 1.4rem; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                    <div><span style="font-size: 0.8em; color: #28a745">R:</span> <span data-format="bytes">{{
+                            disk_read_speed }}</span>/s</div>
+                    <div><span style="font-size: 0.8em; color: #dc3545">W:</span> <span data-format="bytes">{{
+                            disk_write_speed }}</span>/s</div>
+                </div>
+                <div class="stat-label">Disk I/O</div>
+            </div>
+
+            <!-- 6. Network I/O -->
+            <div class="stat-card">
+                <div class="stat-value"
+                    style="font-size: 1.4rem; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+                    <div><span style="font-size: 0.8em; color: #28a745">↓</span> <span data-format="bytes">{{
+                            net_rx_speed }}</span>/s</div>
+                    <div><span style="font-size: 0.8em; color: #007bff">↑</span> <span data-format="bytes">{{
+                            net_tx_speed }}</span>/s</div>
+                </div>
+                <div class="stat-label">Network I/O</div>
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+    // Simple Byte Formatter
+    function formatBytes(bytes, decimals = 2) {
+        if (!+bytes) return '0 B';
+        const k = 1024;
+        const dm = decimals < 0 ? 0 : decimals;
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+    }
+
+    function initStats() {
+        document.querySelectorAll('[data-format="bytes"]').forEach(el => {
+            // Avoid double formatting
+            if (el.dataset.formatted) return;
+
+            const raw = el.innerText;
+            const val = parseInt(raw);
+            if (!isNaN(val)) {
+                el.innerText = formatBytes(val);
+                el.dataset.formatted = "true";
+                el.title = raw + " bytes";
+            }
+        });
+    }
+
+    // Run immediately if this is an HTMX swap or initial load
+    initStats();
+
+    // Ensure it runs on subsequent HTMX navigations
+    document.addEventListener("htmx:afterSwap", initStats);
+    document.addEventListener("DOMContentLoaded", initStats);
+</script>
 
 <!-- Settings Tab -->
 <div id="settings" class="tab-content" style="display: none;">
@@ -54,8 +190,45 @@
         <form hx-post="/settings/update" hx-swap="none">
             <div class="form-group">
                 <label for="panel_name">Panel Name</label>
-                <input type="text" id="panel_name-input" name="panel_name" value="{{ panel_name }}" placeholder="Default: Yunexal Panel" style="max-width: 400px;">
+                <input type="text" id="panel_name-input" name="panel_name" value="{{ panel_name }}"
+                    placeholder="Default: Yunexal Panel" style="max-width: 400px;">
             </div>
+            <div class="form-group">
+                <label for="panel_font">Panel Font Family</label>
+                <div style="margin-bottom: 5px; color: #666; font-size: 0.9em;">
+                    Enter the font-family name (e.g., 'Roboto', 'Inter', 'Open Sans').
+                </div>
+                <input type="text" id="panel_font-input" name="panel_font" value="{{ panel_font }}"
+                    placeholder="e.g. Google Sans Flex" style="max-width: 400px;">
+            </div>
+
+            <div class="form-group">
+                <label for="panel_font_url">Font Import URL</label>
+                <div style="margin-bottom: 5px; color: #666; font-size: 0.9em;">
+                    Optional. Paste a CSS import URL (e.g. from Google Fonts).
+                </div>
+                <input type="text" id="panel_font_url-input" name="panel_font_url" value="{{ panel_font_url }}"
+                    placeholder="https://fonts.googleapis.com/css2?family=..." style="max-width: 400px;">
+
+                <div id="font-warning"
+                    style="margin-top: 10px; padding: 10px; background: #fff3cd; border-left: 4px solid #ffc107; display: none;">
+                    <strong>⚠️ Font Cyrillic Support</strong><br>
+                    Ensure your selected font supports Cyrillic characters if needed.
+                    If not supported, the system will fallback to default system fonts for Cyrillic text.
+                </div>
+            </div>
+
+            <script>
+                document.getElementById('panel_font_url-input').addEventListener('input', function (e) {
+                    const val = e.target.value;
+                    const warning = document.getElementById('font-warning');
+                    if (val && !val.includes('cyrillic')) {
+                        warning.style.display = 'block';
+                    } else {
+                        warning.style.display = 'none';
+                    }
+                });
+            </script>
             <div id="settings-message"></div>
             <button type="submit" class="btn btn-primary" style="margin-top: 10px;">Save Settings</button>
         </form>
@@ -68,38 +241,56 @@
         <h3>User Management</h3>
         <p style="color: #666;">User management feature is coming soon.</p>
         <div style="background: #f8f9fa; padding: 20px; border-radius: 5px; text-align: center;">
-            <p>Admin (You) - <span class="badge badge-success" style="background: #28a745; color: white; padding: 2px 6px; border-radius: 4px;">Active</span></p>
+            <p>Admin (You) - <span class="badge badge-success"
+                    style="background: #28a745; color: white; padding: 2px 6px; border-radius: 4px;">Active</span></p>
+        </div>
+    </div>
+</div>
+
+<!-- WireGuard Tab -->
+<div id="wireguard" class="tab-content" style="display: none;">
+    <div class="section-card" style="text-align: center; padding: 4rem 2rem;">
+        <div style="font-size: 4rem; color: #ddd; margin-bottom: 1rem;">🔒</div>
+        <h2 style="color: #333; margin-bottom: 0.5rem;">WireGuard Integration</h2>
+        <p style="color: #666; max-width: 500px; margin: 0 auto 2rem auto;">
+            Secure networking for your cluster is coming soon.
+            <br>
+            You will be able to manage VPN tunnels directly from the panel.
+        </p>
+        <div
+            style="display: inline-block; background: #e9ecef; color: #495057; padding: 8px 16px; border-radius: 20px; font-weight: 500; font-size: 0.9em;">
+            🚧 Development in Progress
         </div>
     </div>
 </div>
 
 <script>
-function openTab(evt, tabName) {
-  var i, tabcontent, tablinks;
+    function openTab(evt, tabName) {
+        var i, tabcontent, tablinks;
 
-  // Hide all tab content
-  tabcontent = document.getElementsByClassName("tab-content");
-  for (i = 0; i < tabcontent.length; i++) {
-    tabcontent[i].style.display = "none";
-  }
+        // Hide all tab content
+        tabcontent = document.getElementsByClassName("tab-content");
+        for (i = 0; i < tabcontent.length; i++) {
+            tabcontent[i].style.display = "none";
+        }
 
-  // Remove active styling from all tab links
-  tablinks = document.getElementsByClassName("nav-link");
-  for (i = 0; i < tablinks.length; i++) {
-    tablinks[i].style.backgroundColor = "";
-    tablinks[i].style.color = "#007bff";
-    tablinks[i].style.border = "1px solid transparent";
-  }
+        // Remove active styling from all tab links
+        tablinks = document.getElementsByClassName("nav-link");
+        for (i = 0; i < tablinks.length; i++) {
+            tablinks[i].style.backgroundColor = "";
+            tablinks[i].style.color = "#007bff";
+            tablinks[i].style.border = "1px solid transparent";
+        }
 
-  // Show the specific tab content
-  document.getElementById(tabName).style.display = "block";
+        // Show the specific tab content
+        document.getElementById(tabName).style.display = "block";
 
-  // Add active styling to the button that opened the tab
-  evt.currentTarget.style.backgroundColor = "white";
-  evt.currentTarget.style.color = "#495057";
-  evt.currentTarget.style.border = "1px solid #dee2e6";
-  evt.currentTarget.style.borderBottomColor = "transparent";
-}
+        // Add active styling to the button that opened the tab
+        evt.currentTarget.style.backgroundColor = "white";
+        evt.currentTarget.style.color = "#495057";
+        evt.currentTarget.style.border = "1px solid #dee2e6";
+        evt.currentTarget.style.borderBottomColor = "transparent";
+    }
 </script>
 
 {% endblock %}
