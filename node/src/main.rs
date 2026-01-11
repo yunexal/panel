@@ -91,7 +91,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + 'static>> {
         )
     } else {
         warn!("config.yml not found or invalid, falling back to environment variables");
-        dotenvy::dotenv().ok();
+        dotenv::dotenv().ok();
         let token = std::env::var("APP_KEY").expect("APP_KEY environment variable must be set");
         let node_id = std::env::var("NODE_ID").expect("NODE_ID environment variable must be set");
         let panel_url = std::env::var("PANEL_URL").expect("PANEL_URL environment variable must be set");
