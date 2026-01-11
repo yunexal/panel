@@ -1,24 +1,43 @@
 use bcrypt::{hash, DEFAULT_COST};
-use sqlx::postgres::PgPoolOptions;
-use uuid::Uuid;
 use chrono::Utc;
+use sqlx::postgres::PgPoolOptions;
 use std::env;
+use std::io::{self, Write};
+use uuid::Uuid;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     dotenv::dotenv().ok();
 
     let db_url = env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://postgres:REDACTED_PWD@localhost/yunexal".to_string());
+        .expect("DATABASE_URL environment variable must be set (check your .env file)");
 
     let pool = PgPoolOptions::new()
         .max_connections(1)
         .connect(&db_url)
         .await?;
 
-    let username = "nestor_churin";
-    let email = "pavlonimetrons@gmail.com";
-    let password = "REDACTED_PWD";
+    let mut username = String::new();
+    let mut email = String::new();
+    let mut password = String::new();
+
+    print!("Enter username: ");
+    io::stdout().flush()?;
+    io::stdin().read_line(&mut username)?;
+    let username = username.trim();
+
+    print!("Enter email: ");
+    io::stdout().flush()?;
+    io::stdin().read_line(&mut email)?;
+    let email = email.trim();
+
+    let password = rpassword::prompt_password("Enter password: ")?;
+    let password = password.trim();
+
+    if username.is_empty() || email.is_empty() || password.is_empty() {
+        println!("Error: All fields are required.");
+        return Ok(());
+    }
 
     println!("Creating user '{}' with email '{}'...", username, email);
 

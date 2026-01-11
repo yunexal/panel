@@ -86,11 +86,11 @@ pub async fn create_node_handler(
         return Redirect::to("/nodes/new");
     }
 
-    let id = Uuid::new_v4().to_string();
+    let id = Uuid::new_v4();
     let token = Uuid::new_v4().to_string();
 
-    if let Err(e) = sqlx::query("INSERT INTO nodes (id, name, ip, port, token, sftp_port, ram_limit, disk_limit, cpu_limit) VALUES ($1::uuid, $2, $3, $4, $5, $6, $7, $8, $9)")
-        .bind(&id)
+    if let Err(e) = sqlx::query("INSERT INTO nodes (id, name, ip, port, token, sftp_port, ram_limit, disk_limit, cpu_limit) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)")
+        .bind(id)
         .bind(&payload.name)
         .bind(&payload.ip)
         .bind(&payload.port)
@@ -120,9 +120,9 @@ pub async fn create_node_handler(
         let unique_ports: HashSet<i32> = ports.into_iter().collect();
         for port in unique_ports {
              if port >= 0 && port <= 65535 {
-                let _ = sqlx::query("INSERT INTO allocations (id, node_id, ip, port) VALUES ($1::uuid, $2::uuid, $3, $4) ON CONFLICT DO NOTHING")
-                    .bind(Uuid::new_v4().to_string())
-                    .bind(&id)
+                let _ = sqlx::query("INSERT INTO allocations (id, node_id, ip, port) VALUES ($1, $2, $3, $4) ON CONFLICT DO NOTHING")
+                    .bind(Uuid::new_v4())
+                    .bind(id)
                     .bind(&payload.ip)
                     .bind(port)
                     .execute(&state.db)
@@ -139,7 +139,7 @@ pub async fn create_node_handler(
 
 pub async fn setup_node_page_handler(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
     headers: HeaderMap,
 ) -> impl IntoResponse {
     let start_time = std::time::Instant::now();
@@ -149,8 +149,8 @@ pub async fn setup_node_page_handler(
     let panel_font_url = state.panel_font_url.read().await.clone(); // Added
     let panel_version = env!("CARGO_PKG_VERSION").to_string();
 
-    let node_result = sqlx::query_as::<_, Node>("SELECT id::text, name, ip, port, token, sftp_port, ram_limit, disk_limit, cpu_limit, version FROM nodes WHERE id = $1::uuid")
-        .bind(&id)
+    let node_result = sqlx::query_as::<_, Node>("SELECT id, name, ip, port, token, sftp_port, ram_limit, disk_limit, cpu_limit, version FROM nodes WHERE id = $1")
+        .bind(id)
         .fetch_optional(&state.db)
         .await;
 
@@ -161,7 +161,7 @@ pub async fn setup_node_page_handler(
         },
         _ => (
             Node { 
-                id: "".to_string(), 
+                id: Uuid::nil(), 
                 name: "".to_string(), 
                 ip: "".to_string(), 
                 port: 0, 
@@ -195,9 +195,9 @@ pub async fn setup_node_page_handler(
 
 pub async fn delete_node_handler(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
 ) -> impl axum::response::IntoResponse {
-    let _ = sqlx::query("DELETE FROM nodes WHERE id = $1::uuid")
+    let _ = sqlx::query("DELETE FROM nodes WHERE id = $1")
         .bind(id)
         .execute(&state.db)
         .await;
@@ -211,7 +211,7 @@ pub async fn delete_node_handler(
 
 pub async fn edit_node_page_handler(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
     let start_time = std::time::Instant::now(); 
     let panel_version = env!("CARGO_PKG_VERSION").to_string();
@@ -219,8 +219,8 @@ pub async fn edit_node_page_handler(
     let panel_font = state.panel_font.read().await.clone();
     let panel_font_url = state.panel_font_url.read().await.clone(); // Added
 
-    let node_res = sqlx::query_as::<_, Node>("SELECT id::text, name, ip, port, token, sftp_port, ram_limit, disk_limit, cpu_limit, version FROM nodes WHERE id = $1::uuid")
-        .bind(&id)
+    let node_res = sqlx::query_as::<_, Node>("SELECT id, name, ip, port, token, sftp_port, ram_limit, disk_limit, cpu_limit, version FROM nodes WHERE id = $1")
+        .bind(id)
         .fetch_optional(&state.db)
         .await;
     
@@ -239,7 +239,7 @@ pub async fn edit_node_page_handler(
     } else {
         (
             Node { 
-                id: "".to_string(), 
+                id: Uuid::nil(), 
                 name: "".to_string(), 
                 ip: "".to_string(), 
                 port: 0, 
@@ -275,7 +275,7 @@ pub async fn edit_node_page_handler(
 
 pub async fn update_node_handler(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
     Form(payload): Form<UpdateNodeRequest>,
 ) -> Redirect {
     // Validate Ports (duplicated logic from create, could be shared)
@@ -288,7 +288,7 @@ pub async fn update_node_handler(
         return Redirect::to(&format!("/nodes/{}/edit", id));
     }
 
-    let _ = sqlx::query("UPDATE nodes SET name = $1, ip = $2, port = $3, sftp_port = $4, ram_limit = $5, disk_limit = $6, cpu_limit = $7 WHERE id = $8::uuid")
+    let _ = sqlx::query("UPDATE nodes SET name = $1, ip = $2, port = $3, sftp_port = $4, ram_limit = $5, disk_limit = $6, cpu_limit = $7 WHERE id = $8")
         .bind(&payload.name)
         .bind(&payload.ip)
         .bind(&payload.port)
@@ -296,7 +296,7 @@ pub async fn update_node_handler(
         .bind(payload.ram_limit.unwrap_or(0))
         .bind(payload.disk_limit.unwrap_or(0))
         .bind(payload.cpu_limit.unwrap_or(0))
-        .bind(&id)
+        .bind(id)
         .execute(&state.db)
         .await;
     
@@ -308,10 +308,10 @@ pub async fn update_node_handler(
 
 pub async fn trigger_node_update(
     State(state): State<AppState>,
-    Path(id): Path<String>,
+    Path(id): Path<Uuid>,
 ) -> impl IntoResponse {
-    let node_opt = sqlx::query_as::<_, Node>("SELECT id::text, name, ip, port, token, sftp_port, ram_limit, disk_limit, cpu_limit, version FROM nodes WHERE id = $1::uuid")
-        .bind(&id)
+    let node_opt = sqlx::query_as::<_, Node>("SELECT id, name, ip, port, token, sftp_port, ram_limit, disk_limit, cpu_limit, version FROM nodes WHERE id = $1")
+        .bind(id)
         .fetch_optional(&state.db)
         .await
         .unwrap_or(None);

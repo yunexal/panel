@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package node;
+
+service NodeService {
+    rpc StartContainer (ContainerRequest) returns (SuccessResponse);
+    rpc StopContainer (ContainerRequest) returns (SuccessResponse);
+    rpc GetContainerStats (ContainerRequest) returns (StatsResponse);
+    rpc StreamConsole (stream ConsoleInput) returns (stream ConsoleOutput);
+}
+
+message ContainerRequest {
+    string uuid = 1;
+}
+
+message SuccessResponse {
+    string message = 1;
+}
+
+message StatsResponse {
+    double cpu_usage = 1;
+    uint64 ram_usage = 2;
+    uint64 ram_total = 3;
+    uint64 net_rx = 4;
+    uint64 net_tx = 5;
+}
+
+message ConsoleInput {
+    string uuid = 1;
+    bytes data = 2;
+}
+
+message ConsoleOutput {
+    bytes data = 1;
+}

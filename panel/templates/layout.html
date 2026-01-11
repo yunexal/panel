@@ -13,68 +13,26 @@
         rel="stylesheet">
     {% endif %}
 
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <link rel="stylesheet"
         href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     <link rel="stylesheet" href="/public/assets/css/style.css">
+    <script src="/public/assets/js/utils.js"></script>
     <style>
         body {
             font-family: "{{ panel_font }}",
             sans-serif;
         }
     </style>
-    <script>
-        function formatBytes(bytes, decimals = 2) {
-            if (!+bytes) return '0 B';
-            const k = 1024;
-            const dm = decimals < 0 ? 0 : decimals;
-            const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
-        }
-
-        function applyByteFormatting() {
-            document.querySelectorAll('[data-format="bytes"]').forEach(el => {
-                if (el.dataset.formatted) return;
-                const raw = el.innerText;
-                const val = parseInt(raw);
-                if (!isNaN(val)) {
-                    el.innerText = formatBytes(val);
-                    el.dataset.formatted = "true";
-                    el.title = raw + " bytes";
-                }
-            });
-        }
-
-        function toggleMainSidebar() {
-            const sidebar = document.getElementById('main-sidebar');
-            sidebar.style.display = sidebar.style.display === 'none' ? 'flex' : 'none';
-        }
-
-        // Update active class for preserved sidebar links
-        document.addEventListener('htmx:afterSwap', function (evt) {
-            applyByteFormatting();
-            const path = window.location.pathname;
-            document.querySelectorAll('#main-sidebar nav a').forEach(a => {
-                const href = a.getAttribute('href');
-                a.classList.remove('active');
-                if (href === '/' && path === '/') a.classList.add('active');
-                else if (href !== '/' && path.startsWith(href)) a.classList.add('active');
-            });
-        });
-
-        document.addEventListener('DOMContentLoaded', applyByteFormatting);
-    </script>
     {% block scripts %}{% endblock %}
 </head>
 
-<body hx-boost="true">
+<body>
     <div id="connection-lost-banner"
         style="display: none; position: fixed; top: 0; left: 0; width: 100%; background-color: #ff4444; color: white; text-align: center; padding: 0.5rem; font-weight: bold; z-index: 9999; box-shadow: 0 2px 5px rgba(0,0,0,0.2);">
         ⚠️ Connection Lost - check your internet connection
     </div>
 
-    <div id="main-sidebar" class="sidebar" hx-preserve="true">
+    <div id="main-sidebar" class="sidebar">
         {% block sidebar_title %}<h2 id="sidebar-panel-name">{{ panel_name }}</h2>{% endblock %}
         <nav>
             <a href="/" class="{% if active_tab == " overview" %}active{% endif %}">Overview</a>
@@ -84,40 +42,13 @@
             <a href="/logs" class="{% if active_tab == " logs" %}active{% endif %}">Panel Logs</a>
             <hr style="border: 0; border-top: 1px solid #eee; margin: 10px 0;">
             <form action="/auth/logout" method="POST">
-                <button type="submit" style="width: 100%; text-align: left; background: none; border: none; padding: 10px 15px; color: #666; font-family: inherit; font-size: inherit; cursor: pointer; display: flex; align-items: center; gap: 10px;">
+                <button type="submit"
+                    style="width: 100%; text-align: left; background: none; border: none; padding: 10px 15px; color: #666; font-family: inherit; font-size: inherit; cursor: pointer; display: flex; align-items: center; gap: 10px;">
                     <span class="material-symbols-outlined" style="font-size: 20px;">logout</span>
                     Logout
                 </button>
             </form>
         </nav>
-        <script>
-            function updateConnectionStatus(isError = false) {
-                const banner = document.getElementById('connection-lost-banner');
-                if (!banner) return;
-                if (navigator.onLine && !isError) {
-                    banner.style.display = 'none';
-                } else {
-                    banner.style.display = 'block';
-                }
-            }
-            window.addEventListener('online', () => updateConnectionStatus(false));
-            window.addEventListener('offline', () => updateConnectionStatus(false));
-
-            document.body.addEventListener('htmx:sendError', function (evt) {
-                updateConnectionStatus(true);
-            });
-            document.body.addEventListener('htmx:responseError', function (evt) {
-                // optional: trigger on 500s too?
-                // updateConnectionStatus(true); 
-            });
-            document.body.addEventListener('htmx:afterSwap', function (evt) {
-                // If a successful swap happens, we are back online
-                updateConnectionStatus(false);
-            });
-
-            // Initial check
-            updateConnectionStatus();
-        </script>
     </div>
     <main class="content">
         {% block styles %}{% endblock %}

@@ -47,7 +47,7 @@ pub async fn allocations_page_handler(
     let limit = 50;
     let offset = (page - 1) * limit;
 
-    let node_opt = sqlx::query_as::<_, Node>("SELECT id::text, name, ip, port, token, sftp_port, ram_limit, disk_limit, cpu_limit, version FROM nodes WHERE id = $1::uuid")
+    let node_opt = sqlx::query_as::<_, Node>("SELECT id::uuid, name, ip, port, token, sftp_port, ram_limit, disk_limit, cpu_limit, version FROM nodes WHERE id = $1::uuid")
         .bind(&id)
         .fetch_optional(&state.db)
         .await

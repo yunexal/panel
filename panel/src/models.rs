@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::FromRow;
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::str::FromStr;
 use uuid::Uuid;
@@ -89,7 +90,7 @@ pub struct User {
     pub username: String,
     pub email: String,
     pub password_hash: String,
-    pub role: String,        // "admin", "user"
+    pub role: String,                // "admin", "user"
     pub permissions: Option<String>, // JSON or comma-separated
     pub created_at: DateTime<Utc>,
 }
@@ -103,7 +104,7 @@ impl User {
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct Node {
-    pub id: String,
+    pub id: Uuid,
     pub name: String,
     pub ip: String,
     pub port: i32,
@@ -119,6 +120,12 @@ pub struct Node {
     pub cpu_limit: i32,
     #[sqlx(default)]
     pub version: String,
+}
+
+impl Node {
+    pub fn short_id(&self) -> String {
+        self.id.to_string().chars().take(8).collect()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
@@ -146,8 +153,15 @@ pub struct Server {
 
     // Advanced
     pub cpu_pinning: Option<String>,
-    pub status: String, // installing, running, stopped, etc.
+    pub variables: String, // JSON stored as string
+    pub status: String,    // installing, running, stopped, etc.
     pub created_at: DateTime<Utc>,
+}
+
+impl Server {
+    pub fn short_id(&self) -> String {
+        self.id.to_string().chars().take(8).collect()
+    }
 }
 
 #[derive(Deserialize)]
@@ -185,9 +199,10 @@ pub struct CreateServerRequest {
 
     // Startup
     pub startup_command: Option<String>,
-    // We'll handle variables as a dynamic map or just raw fields in the handler
-    // But for strict typing, we might just grab them from form directly if possible,
-    // or use a wrapper. For now, let's assume we handle them dynamically or add a field if needed.
+
+    // Catch-all for environment variables and other dynamic fields
+    #[serde(flatten)]
+    pub environment: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -276,13 +291,12 @@ where
     }
 }
 
-
 #[derive(Deserialize)]
 pub struct UpdateServerRequest {
     pub name: String,
     pub description: Option<String>,
     pub owner_id: Option<String>,
-    
+
     // Limits
     #[serde(default, deserialize_with = "empty_string_as_none")]
     pub cpu_limit: Option<i32>,

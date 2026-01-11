@@ -53,22 +53,22 @@
                 </td>
                 <td style="padding: 1rem;">{{ server.owner_id }}</td>
                 <td style="padding: 1rem;">
-                    <!-- In a real app we'd join this name, or fetch it. For now ID is fine or we augment struct -->
-                    <span style="font-family: monospace; background: #e9ecef; padding: 2px 4px; border-radius: 4px;">{{
-                        server.node_id }}</span>
+                    <span style="font-family: monospace; background: #e9ecef; padding: 2px 4px; border-radius: 4px;"
+                        title="{{ server.node_id }}">{{ server.node_id }}</span>
                 </td>
                 <td style="padding: 1rem;">
                     <!-- We need allocation IP/Port here, but Server struct only has ID. 
                                   We should probably JOIN in the handler or fetch separately. 
                                   For now, just showing IDs is "safe" but not UX friendly.
                                   Let's leave empty or show 'View Details' -->
-                    <span style="color: #666;">Alloc: {% if let Some(aid) = server.allocation_id %}{{ aid }}{% else %}None{% endif %}</span>
+                    <span style="color: #666;">Alloc: {% if let Some(aid) = server.allocation_id %}{{ aid }}{% else
+                        %}None{% endif %}</span>
                 </td>
                 <td style="padding: 1rem;">
                     <span class="badge {% if server.status == " running" %}badge-success{% else %}badge-warning{% endif
                         %}" style="padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; 
-                                         {% if server.status == " running" %}background: #d4edda; color: #155724;{%
-                        else %}background: #fff3cd; color: #856404;{% endif %}">
+                                 {% if server.status == " running" %}background: #d4edda; color: #155724;{% else
+                        %}background: #fff3cd; color: #856404;{% endif %}">
                         {{ server.status }}
                     </span>
                 </td>

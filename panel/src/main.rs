@@ -8,6 +8,7 @@ use std::net::SocketAddr;
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+mod grpc;
 mod http;
 mod models;
 mod repositories;
@@ -19,7 +20,7 @@ use http::handlers::{
         allocations_page_handler, create_allocations_handler, delete_allocations_handler,
     },
     api::heartbeat_handler,
-    auth::{self, rotate_token_handler, auth_routes},
+    auth::{self, auth_routes, rotate_token_handler},
     dashboard::nodes_page_handler,
     logs::logs_handler,
     nodes::{
@@ -37,8 +38,9 @@ use http::handlers::{
     scripts::{install_script_handler, uninstall_script_handler},
     servers::{
         create_server_handler, create_server_page_handler, delete_server_handler,
-        edit_server_page_handler, manage_server_page_handler, servers_page_handler,
-        update_server_handler,
+        edit_server_page_handler, manage_server_page_handler, restart_server_handler,
+        server_stats_handler, servers_page_handler, start_server_handler,
+        stop_server_handler, update_server_handler,
     },
 };
 use state::AppState;
@@ -65,7 +67,7 @@ async fn main() {
 
     // Initialize Database Connection
     let db_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://postgres:REDACTED_PWD@localhost/yunexal".to_string());
+        .expect("DATABASE_URL environment variable must be set (check your .env file)");
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&db_url)
@@ -86,6 +88,11 @@ async fn main() {
     )
     .execute(&pool)
     .await;
+
+    // Migrations for dev environment
+    let _ = sqlx::query("ALTER TABLE nodes ALTER COLUMN id TYPE UUID USING id::uuid")
+        .execute(&pool)
+        .await;
 
     // Attempt to add token column if it doesn't exist (migration hack for dev)
     let _ = sqlx::query("ALTER TABLE nodes ADD COLUMN IF NOT EXISTS token TEXT")
@@ -242,7 +249,7 @@ async fn main() {
             description TEXT,
             owner_id TEXT NOT NULL,
             node_id UUID NOT NULL REFERENCES nodes(id),
-            allocation_id UUID NOT NULL REFERENCES allocations(id),
+            allocation_id UUID REFERENCES allocations(id),
             image_id UUID NOT NULL REFERENCES images(id),
             
             cpu_limit INTEGER DEFAULT 0,
@@ -264,6 +271,14 @@ async fn main() {
     )
     .execute(&pool)
     .await;
+
+    let _ = sqlx::query("ALTER TABLE servers ALTER COLUMN allocation_id DROP NOT NULL")
+        .execute(&pool)
+        .await;
+
+    let _ = sqlx::query("ALTER TABLE servers ADD COLUMN IF NOT EXISTS variables TEXT DEFAULT '{}'")
+        .execute(&pool)
+        .await;
 
     // Users Table
     let _ = sqlx::query(
@@ -307,10 +322,16 @@ async fn main() {
         .unwrap_or((0,));
 
     if user_count.0 == 0 {
-        tracing::info!("No users found. Creating default 'admin' user...");
+        tracing::info!("No users found. Creating default 'admin' user with random password...");
         let admin_id = uuid::Uuid::new_v4();
-        let password = "admin";
-        let hash = bcrypt::hash(password, bcrypt::DEFAULT_COST).expect("Failed to hash password");
+        let password = uuid::Uuid::new_v4().to_string().replace("-", "").chars().take(12).collect::<String>();
+        let hash = bcrypt::hash(&password, bcrypt::DEFAULT_COST).expect("Failed to hash password");
+
+        println!("**************************************************");
+        println!("* DEFAULT ADMIN USER CREATED                     *");
+        println!("* Username: admin                                *");
+        println!("* Password: {}                             *", password);
+        println!("**************************************************");
 
         let _ = sqlx::query(
             "INSERT INTO users (id, username, email, password_hash, role, permissions, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)"
@@ -383,12 +404,19 @@ async fn main() {
             post(http::handlers::overview::update_settings_handler),
         )
         .route("/nodes", get(nodes_page_handler).post(create_node_handler))
-        .route("/servers", get(servers_page_handler).post(create_server_handler))
+        .route(
+            "/servers",
+            get(servers_page_handler).post(create_server_handler),
+        )
         .route("/servers/new", get(create_server_page_handler))
         .route("/servers/{id}/manage", get(manage_server_page_handler))
         .route("/servers/{id}/edit", get(edit_server_page_handler))
         .route("/servers/{id}/update", post(update_server_handler))
         .route("/servers/{id}/delete", post(delete_server_handler))
+        .route("/servers/{id}/start", post(start_server_handler))
+        .route("/servers/{id}/stop", post(stop_server_handler))
+        .route("/servers/{id}/restart", post(restart_server_handler))
+        .route("/servers/{id}/stats", get(server_stats_handler))
         .route(
             "/runtimes",
             get(runtimes_page_handler).post(create_runtime_handler),
@@ -429,18 +457,23 @@ async fn main() {
         .route("/nodes/{id}/trigger-update", post(trigger_node_update))
         .route("/nodes/{id}/rotate-token", post(rotate_token_handler))
         .route("/nodes/{id}", delete(delete_node_handler))
-        .layer(axum::middleware::from_fn_with_state(state.clone(), auth::auth_middleware));
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            auth::auth_middleware,
+        ));
 
     let public_routes = Router::new()
         .route("/nodes/{id}/heartbeat", post(heartbeat_handler))
         .route("/install/{id}", get(install_script_handler))
         .route("/uninstall/{id}", get(uninstall_script_handler))
         .nest("/auth", auth_routes())
-        .nest_service("/public", ServeDir::new("panel/public"));
+        .nest_service("/public", ServeDir::new("panel/public"))
+        .nest_service("/downloads", ServeDir::new("panel/public"));
 
     let app = Router::new()
         .merge(protected_routes)
         .merge(public_routes)
+        .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state);
 
     // Run it
@@ -452,7 +485,12 @@ async fn main() {
     let addr = SocketAddr::from(([0, 0, 0, 0], port));
     println!("Panel listening on http://{}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await.unwrap();
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await
+    .unwrap();
 }
 
 // Migration: Make allocation_id nullable

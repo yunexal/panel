@@ -40,7 +40,7 @@ pub async fn install_script_handler(
     let host = headers.get("host").and_then(|h| h.to_str().ok()).unwrap_or("127.0.0.1:3000");
 
     // Fetch node to get configured port and token
-    let node_result = sqlx::query_as::<_, Node>("SELECT id::text, name, ip, port, token FROM nodes WHERE id = $1::uuid")
+    let node_result = sqlx::query_as::<_, Node>("SELECT id::uuid, name, ip, port, token FROM nodes WHERE id = $1::uuid")
         .bind(&id)
         .fetch_optional(&state.db)
         .await;

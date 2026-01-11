@@ -1,23 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Yunexal Panel{% endblock %}</title>
-    
+
     {% if !panel_font_url.is_empty() %}
     <link href="{{ panel_font_url }}" rel="stylesheet">
     {% else %}
-    <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans+Flex:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
     {% endif %}
 
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
     <link rel="stylesheet" href="/public/assets/css/style.css">
+    <link rel="stylesheet" href="/public/assets/css/auth.css">
     <style>
-        body { font-family: "{{ panel_font }}", sans-serif; background-color: #f5f5f5; }
+        body {
+            font-family: "{{ panel_font }}",
+            sans-serif;
+        }
     </style>
 </head>
+
 <body class="auth-body">
     {% block content %}{% endblock %}
 </body>
+
 </html>

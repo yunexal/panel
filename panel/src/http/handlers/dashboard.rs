@@ -121,8 +121,8 @@ pub async fn nodes_page_handler(
         }
 
         view_nodes.push(NodeViewModel {
-            id: node.id.clone(),
-            id_short: node.id[..8].to_string(),
+            id: node.id.to_string(),
+            id_short: node.short_id(),
             name: node.name,
             ip: node.ip,
             port: node.port,

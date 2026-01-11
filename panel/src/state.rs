@@ -5,6 +5,7 @@ use sqlx::postgres::PgPool;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -15,7 +16,7 @@ pub struct AppState {
     pub panel_font: Arc<RwLock<String>>,
     pub panel_font_url: Arc<RwLock<String>>,
     pub nodes_cache: Arc<RwLock<Option<Vec<Node>>>>,
-    pub heartbeats_cache: Arc<RwLock<HashMap<String, HeartbeatPayload>>>,
+    pub heartbeats_cache: Arc<RwLock<HashMap<Uuid, HeartbeatPayload>>>,
 }
 
 impl AppState {
@@ -44,7 +45,7 @@ impl AppState {
         }
 
         // 3. Fetch DB
-        let nodes_result = sqlx::query_as::<_, Node>("SELECT id::text, name, ip, port, token, sftp_port, ram_limit, disk_limit, cpu_limit, version FROM nodes")
+        let nodes_result = sqlx::query_as::<_, Node>("SELECT id, name, ip, port, token, sftp_port, ram_limit, disk_limit, cpu_limit, version FROM nodes")
             .fetch_all(&self.db)
             .await;
 
