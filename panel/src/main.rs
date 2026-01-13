@@ -436,7 +436,7 @@ async fn main() {
         .route("/install/{id}", get(install_script_handler))
         .route("/uninstall/{id}", get(uninstall_script_handler))
         .nest("/auth", auth_routes())
-        .nest_service("/public", ServeDir::new("panel/public"));
+        .nest_service("/assets", ServeDir::new("public/assets"));
 
     let app = Router::new()
         .merge(protected_routes)
